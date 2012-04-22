@@ -71,7 +71,7 @@ void sngisdn_process_con_ind (sngisdn_event_data_t *sngisdn_event)
 				sngisdn_info->glare.suInstId = suInstId; /* Do not generate a suInstId now, we will generate when glared call gets extracted */
 				sngisdn_info->glare.spInstId = spInstId;
 				sngisdn_info->glare.dChan = dChan;
-				sngisdn_info->glare.ces = ces;				
+				sngisdn_info->glare.ces = ces;
 				break;
 			}
 			
@@ -133,7 +133,7 @@ void sngisdn_process_con_ind (sngisdn_event_data_t *sngisdn_event)
 			get_redir_num(ftdmchan, &conEvnt->redirNmb);
 			get_calling_subaddr(ftdmchan, &conEvnt->cgPtySad);
 			get_prog_ind_ie(ftdmchan, &conEvnt->progInd);
-			get_facility_ie(ftdmchan, &conEvnt->facilityStr);
+			get_facility_ie(ftdmchan, SNGISDN_EVENT_CON_IND, &conEvnt->facilityStr);
 			get_calling_name(ftdmchan, conEvnt);
 			get_network_specific_fac(ftdmchan, &conEvnt->netFac[0]);
 			
@@ -189,7 +189,8 @@ void sngisdn_process_con_ind (sngisdn_event_data_t *sngisdn_event)
 					strcpy(ftdmchan->caller_data.cid_name, retrieved_str);
 				}
 			}
-#endif			
+#endif
+
 			if (signal_data->overlap_dial == SNGISDN_OPT_TRUE && !conEvnt->sndCmplt.eh.pres) {
 				ftdm_set_state(ftdmchan, FTDM_CHANNEL_STATE_COLLECT);
 			} else {
@@ -296,7 +297,8 @@ void sngisdn_process_con_cfm (sngisdn_event_data_t *sngisdn_event)
 				get_callref(ftdmchan, &cnStEvnt->callRef);
 #endif
 				get_prog_ind_ie(ftdmchan, &cnStEvnt->progInd);
-				get_facility_ie(ftdmchan, &cnStEvnt->facilityStr);
+				get_facility_ie(ftdmchan, SNGISDN_EVENT_CNST_IND, &cnStEvnt->facilityStr);
+
 				ftdm_set_state(ftdmchan, FTDM_CHANNEL_STATE_UP);
 				break;
 			case FTDM_CHANNEL_STATE_HANGUP_COMPLETE:
@@ -374,7 +376,7 @@ void sngisdn_process_cnst_ind (sngisdn_event_data_t *sngisdn_event)
 			get_callref(ftdmchan, &cnStEvnt->callRef);
 #endif
 			get_prog_ind_ie(ftdmchan, &cnStEvnt->progInd);
-			get_facility_ie(ftdmchan, &cnStEvnt->facilityStr);
+			get_facility_ie(ftdmchan, SNGISDN_EVENT_CNST_IND, &cnStEvnt->facilityStr);
 
 			if (sngisdn_cause_val_requires_disconnect(ftdmchan, &cnStEvnt->causeDgn[0]) == FTDM_SUCCESS) {
 				ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "Cause requires disconnect (cause:%d)\n", cnStEvnt->causeDgn[0].causeVal.val);
@@ -538,7 +540,7 @@ void sngisdn_process_disc_ind (sngisdn_event_data_t *sngisdn_event)
 		case FTDM_CHANNEL_STATE_PROGRESS:
 		case FTDM_CHANNEL_STATE_PROGRESS_MEDIA:
 		case FTDM_CHANNEL_STATE_UP:
-			get_facility_ie(ftdmchan, &discEvnt->facilityStr);
+			get_facility_ie(ftdmchan, SNGISDN_EVENT_DISC_IND, &discEvnt->facilityStr);
 
 			if (discEvnt->causeDgn[0].eh.pres && discEvnt->causeDgn[0].causeVal.pres) {
 				ftdmchan->caller_data.hangup_cause = discEvnt->causeDgn[0].causeVal.val;
@@ -633,7 +635,7 @@ void sngisdn_process_rel_ind (sngisdn_event_data_t *sngisdn_event)
 			if (((sngisdn_chan_data_t*)ftdmchan->call_data)->suInstId == suInstId ||
 									((sngisdn_chan_data_t*)ftdmchan->call_data)->spInstId == spInstId) {
 
-				get_facility_ie(ftdmchan, &relEvnt->facilityStr);
+				get_facility_ie(ftdmchan, SNGISDN_EVENT_REL_IND, &relEvnt->facilityStr);
 				
 				if (relEvnt->causeDgn[0].eh.pres && relEvnt->causeDgn[0].causeVal.pres) {
 					ftdmchan->caller_data.hangup_cause = relEvnt->causeDgn[0].causeVal.val;
@@ -815,7 +817,7 @@ void sngisdn_process_fac_ind (sngisdn_event_data_t *sngisdn_event)
 	if (signal_data->facility_ie_decode == SNGISDN_OPT_FALSE) {
 		/* If Facility decoding is disabled, we do not care about current call state, just pass event up to user */
 		if (facEvnt->facElmt.facStr.pres) {
-			get_facility_ie_str(ftdmchan, &facEvnt->facElmt.facStr.val[2], facEvnt->facElmt.facStr.len-2);
+			get_facility_ie_str(ftdmchan, SNGISDN_EVENT_FAC_IND, &facEvnt->facElmt.facStr.val[2], facEvnt->facElmt.facStr.len-2);
 			sngisdn_send_signal(sngisdn_info, FTDM_SIGEVENT_FACILITY);
 		}
 		ISDN_FUNC_TRACE_EXIT(__FUNCTION__);
@@ -856,7 +858,7 @@ void sngisdn_process_fac_ind (sngisdn_event_data_t *sngisdn_event)
 			{
 				ftdm_sigmsg_t sigev;
 				if (facEvnt->facElmt.facStr.pres) {
-					get_facility_ie_str(ftdmchan, &facEvnt->facElmt.facStr.val[2], facEvnt->facElmt.facStr.len-2);
+					get_facility_ie_str(ftdmchan, SNGISDN_EVENT_FAC_IND, &facEvnt->facElmt.facStr.val[2], facEvnt->facElmt.facStr.len-2);
 				}
 				memset(&sigev, 0, sizeof(sigev));
 				sigev.chan_id = ftdmchan->chan_id;

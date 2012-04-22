@@ -59,7 +59,14 @@ void sngisdn_snd_setup(ftdm_channel_t *ftdmchan)
 		signal_data->signalling == SNGISDN_SIGNALING_NET) {
 		sngisdn_info->ces = CES_MNGMNT;
 	}
-	ftdm_log_chan(sngisdn_info->ftdmchan, FTDM_LOG_INFO, "Outgoing call: Called No:[%s] Calling No:[%s]\n", ftdmchan->caller_data.dnis.digits, ftdmchan->caller_data.cid_num.digits);
+	ftdm_log_chan(ftdmchan, FTDM_LOG_INFO, "Outgoing call: Called No:[%s] Calling No:[%s]\n", ftdmchan->caller_data.dnis.digits, ftdmchan->caller_data.cid_num.digits);
+
+	if (signal_data->transfer && 
+		signal_data->switchtype == SNGISDN_SWITCH_DMS100 &&
+		signal_data->signalling == SNGISDN_SIGNALING_CPE) {
+
+		sngisdn_rltoperationid_invoke(ftdmchan);
+	}
 
 	set_chan_id_ie(ftdmchan, &conEvnt.chanId);	
 	set_bear_cap_ie(ftdmchan, &conEvnt.bearCap[0]);
@@ -227,6 +234,12 @@ void sngisdn_snd_alert(ftdm_channel_t *ftdmchan, ftdm_sngisdn_progind_t prog_ind
 	memset(&cnStEvnt, 0, sizeof(cnStEvnt));
 
 	set_prog_ind_ie(ftdmchan, &cnStEvnt.progInd, prog_ind);
+	if (sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_INVOKE) &&
+		!sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
+
+		sngisdn_rltoperationid_respond(ftdmchan);
+	}
+
 	set_facility_ie(ftdmchan, &cnStEvnt.facilityStr);
 
 	ftdm_log_chan(ftdmchan, FTDM_LOG_INFO, "Sending ALERT (suId:%d suInstId:%u spInstId:%u dchan:%d ces:%d)\n", signal_data->cc_id, sngisdn_info->suInstId, sngisdn_info->spInstId, signal_data->dchan_id, sngisdn_info->ces);
@@ -238,7 +251,7 @@ void sngisdn_snd_alert(ftdm_channel_t *ftdmchan, ftdm_sngisdn_progind_t prog_ind
 }
 
 void sngisdn_snd_connect(ftdm_channel_t *ftdmchan)
-{
+{	
 	CnStEvnt cnStEvnt;
 	sngisdn_chan_data_t *sngisdn_info = (sngisdn_chan_data_t*) ftdmchan->call_data;
 	sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*) ftdmchan->span->signal_data;

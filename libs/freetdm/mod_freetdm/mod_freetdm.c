@@ -939,8 +939,11 @@ static switch_status_t channel_receive_message_cas(switch_core_session_t *sessio
 static switch_status_t channel_receive_message_b(switch_core_session_t *session, switch_core_session_message_t *msg)
 {
 	switch_channel_t *channel;
+	const char *val;
+	ftdm_usrmsg_t usrmsg;
 	private_t *tech_pvt;
 
+	val = NULL;
 	channel = switch_core_session_get_channel(session);
 	assert(channel != NULL);
 			
@@ -973,15 +976,18 @@ static switch_status_t channel_receive_message_b(switch_core_session_t *session,
 		break;
 	case SWITCH_MESSAGE_INDICATE_ANSWER:
 		{
-			ftdm_channel_call_answer(tech_pvt->ftdmchan);
+			if ((val = switch_channel_get_variable(channel, "freetdm_isdn.rlt-operation"))) {
+				memset(&usrmsg, 0, sizeof(usrmsg));
+				ftdm_usrmsg_add_var(&usrmsg, "isdn.rlt-operation", val);
+				ftdm_channel_call_answer_ex(tech_pvt->ftdmchan, &usrmsg);	
+			} else {
+				ftdm_channel_call_answer(tech_pvt->ftdmchan);
+			}
 		}
 		break;
 	case SWITCH_MESSAGE_INDICATE_REDIRECT:
 	case SWITCH_MESSAGE_INDICATE_DEFLECT:
-		{
-			ftdm_usrmsg_t usrmsg;
-			const char *val = NULL;
-
+		{			
 			memset(&usrmsg, 0, sizeof(usrmsg));
 
 			if ((val = switch_channel_get_variable(channel, "freetdm_transfer_data"))) {
@@ -996,6 +1002,7 @@ static switch_status_t channel_receive_message_b(switch_core_session_t *session,
 				switch_yield(100000);
 			}
 		}
+		break;
 	default:
 		break;
 	}
@@ -1625,7 +1632,7 @@ static switch_call_cause_t channel_outgoing_channel(switch_core_session_t *sessi
 			} else {
 				cause = SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER;
 			}
-            		goto fail;
+            goto fail;
 		}
 
 		return SWITCH_CAUSE_SUCCESS;
@@ -2409,6 +2416,7 @@ static FIO_SIGNAL_CB_FUNCTION(on_r2_signal)
 
 static FIO_SIGNAL_CB_FUNCTION(on_clear_channel_signal)
 {
+	ftdm_status_t status = FTDM_SUCCESS;
 	switch_core_session_t *session = NULL;
 	switch_channel_t *channel = NULL;
 	ftdm_caller_data_t *caller_data;
@@ -2494,6 +2502,36 @@ static FIO_SIGNAL_CB_FUNCTION(on_clear_channel_signal)
 					spanid, chanid, ftdm_signaling_status2str(sigstatus));
 		}
 		break;
+	case FTDM_SIGEVENT_BRIDGE:
+		{
+			switch_core_session_t *session_a, *session_b = NULL;
+			switch_channel_t *channel_a = NULL, *channel_b = NULL;
+			const char *br_a_uuid = NULL, *br_b_uuid = NULL;
+
+			if ((session_a = switch_core_session_locate(ftdm_channel_get_token(sigmsg->channel, 0)))) {
+				channel_a = switch_core_session_get_channel(session_a);
+				br_a_uuid = switch_channel_get_variable(channel_a, SWITCH_SIGNAL_BOND_VARIABLE);
+			}
+
+			if ((session_b = switch_core_session_locate(ftdm_channel_get_token(sigmsg->ev_data.bridge.peer_chan, 0)))) {
+				channel_b = switch_core_session_get_channel(session_b);
+				br_b_uuid = switch_channel_get_variable(channel_b, SWITCH_SIGNAL_BOND_VARIABLE);
+			}
+
+			if (channel_a && channel_b) {
+				if (br_a_uuid && br_b_uuid) {
+					switch_ivr_uuid_bridge(br_a_uuid, br_b_uuid);
+				}
+			}
+			if (session_a) {
+				switch_core_session_rwunlock(session_a);
+			}
+
+			if (session_b) {
+				switch_core_session_rwunlock(session_b);
+			}
+		}
+		break;
 	case FTDM_SIGEVENT_PROCEED:
 	case FTDM_SIGEVENT_FACILITY:
 	case FTDM_SIGEVENT_TRANSFER_COMPLETED:
@@ -2507,7 +2545,7 @@ static FIO_SIGNAL_CB_FUNCTION(on_clear_channel_signal)
 		break;
 	}
 
-	return FTDM_SUCCESS;
+	return status;
 }
 
 static FIO_SIGNAL_CB_FUNCTION(on_analog_signal)
@@ -2559,7 +2597,27 @@ static void ftdm_logger(const char *file, const char *func, int line, int level,
 	}
 	if (data) free(data);
     va_end(ap);
+}
 
+
+static ftdm_channel_t *ftdm_get_peer(ftdm_channel_t *ftdmchan)
+{
+	ftdm_channel_t *peer_chan = NULL;
+	switch_core_session_t *session = NULL;
+	switch_core_session_t *other_session = NULL;
+
+	session = ftdm_channel_get_session(ftdmchan, 0);
+	if (session) {
+		if (switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
+			switch_core_session_rwunlock(other_session);
+			if (switch_core_session_check_interface(other_session, freetdm_endpoint_interface)) {
+				private_t *tech_pvt = switch_core_session_get_private(other_session);
+				peer_chan = tech_pvt->ftdmchan;
+			}
+		}
+		switch_core_session_rwunlock(session);
+	}
+	return peer_chan;
 }
 
 static uint32_t enable_analog_option(const char *str, uint32_t current_options)
@@ -4829,6 +4887,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_freetdm_load)
 
 	ftdm_global_set_logger(ftdm_logger);
 
+	ftdm_global_set_peer(ftdm_get_peer);
+
 	ftdm_global_set_mod_directory(SWITCH_GLOBAL_dirs.mod_dir);
 
 	ftdm_global_set_config_directory(SWITCH_GLOBAL_dirs.conf_dir);
@@ -4902,3 +4962,4 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_freetdm_shutdown)
  * For VIM:
  * vim:set softtabstop=4 shiftwidth=4 tabstop=4:
  */
+

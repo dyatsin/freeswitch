@@ -323,6 +323,14 @@ static void null_logger(const char *file, const char *func, int line, int level,
 	return;
 }
 
+static ftdm_channel_t *null_peer(ftdm_channel_t *ftdmchan)
+{
+	if (ftdmchan) {
+		/* To prevent unused variable warning */
+		return NULL;
+	}
+	return NULL;
+}
 
 const char *FTDM_LEVEL_NAMES[9] = {
 	"EMERG",
@@ -508,6 +516,7 @@ FT_DECLARE(ftdm_status_t) ftdm_channel_set_caller_data(ftdm_channel_t *ftdmchan,
 }
 
 FT_DECLARE_DATA ftdm_logger_t ftdm_log = null_logger;
+FT_DECLARE_DATA ftdm_peer_t ftdm_peer = null_peer;
 
 FT_DECLARE(void) ftdm_global_set_crash_policy(ftdm_crash_policy_t policy)
 {
@@ -530,6 +539,15 @@ FT_DECLARE(ftdm_status_t) ftdm_global_set_memory_handler(ftdm_memory_handler_t *
 	}
 	memcpy(&g_ftdm_mem_handler, handler, sizeof(*handler));
 	return FTDM_SUCCESS;
+}
+
+FT_DECLARE(void) ftdm_global_set_peer(ftdm_peer_t peer)
+{
+	if (peer) {
+		ftdm_peer = peer;
+	} else {
+		ftdm_peer = null_peer;
+	}
 }
 
 FT_DECLARE(void) ftdm_global_set_logger(ftdm_logger_t logger)

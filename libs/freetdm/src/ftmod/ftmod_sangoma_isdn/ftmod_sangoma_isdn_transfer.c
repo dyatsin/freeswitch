@@ -163,8 +163,9 @@ static ftdm_status_t att_courtesy_vru(ftdm_channel_t *ftdmchan, sngisdn_transfer
 				/* Notify the user that we answered the call */
 				sngisdn_send_signal(sngisdn_info, FTDM_SIGEVENT_UP);
 			}
+
 			if (signal_data->transfer_timeout) {
-				ftdm_sched_timer(((sngisdn_span_data_t*)ftdmchan->span->signal_data)->sched, "courtesy_transfer_timeout", signal_data->transfer_timeout, att_courtesy_transfer_timeout, (void*) sngisdn_info, &sngisdn_info->timers[SNGISDN_CHAN_TIMER_ATT_TRANSFER]);
+				ftdm_sched_timer(((sngisdn_span_data_t*)ftdmchan->span->signal_data)->sched, "courtesy_transfer_timeout", signal_data->transfer_timeout, att_courtesy_transfer_timeout, (void*) sngisdn_info, &sngisdn_info->timers[SNGISDN_CHAN_TIMER_TRANSFER]);
 			}
 
 			status = FTDM_SUCCESS;
@@ -176,6 +177,75 @@ static ftdm_status_t att_courtesy_vru(ftdm_channel_t *ftdmchan, sngisdn_transfer
 	}
 done:
 	return status;
+}
+
+void rlt_request_transfer(ftdm_channel_t *ftdmchan)
+{
+	ftdm_channel_t *peer_chan = NULL;
+
+	peer_chan = ftdm_peer(ftdmchan);
+	
+	/* TODO: when NFAS is implemented, peer_chan->span may not be equal to ftdmchan->span */
+	if (peer_chan && (peer_chan->span == ftdmchan->span)) {
+		sngisdn_chan_data_t *sngisdn_info = ftdmchan->call_data;
+
+		ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT transfer requested on channel:s%dc%d (call-id:0x%08x)\n", peer_chan->physical_span_id, peer_chan->physical_chan_id, sngisdn_info->transfer_data.tdata.nortel_rlt.callid);
+
+		sngisdn_rltthirdparty_invoke(peer_chan, sngisdn_info->transfer_data.tdata.nortel_rlt.callid, sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len);
+		sngisdn_snd_fac_req(peer_chan);
+		ftdm_usrmsg_free(&peer_chan->usrmsg);
+		sngisdn_set_flag(sngisdn_info, FLAG_RLT_THIRDPARTY_INVOKE);
+	}
+
+	return;
+}
+
+void rlt_perform_transfer(ftdm_channel_t *ftdmchan, uint32_t callid, uint8_t callid_len)
+{
+	sngisdn_chan_data_t *sngisdn_info = ftdmchan->call_data;
+	sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*) ftdmchan->span->signal_data;
+	ftdm_channel_t *bleg = NULL;
+	ftdm_iterator_t *chaniter = NULL;
+	ftdm_iterator_t *curr = NULL;
+	sngisdn_chan_data_t *tmp_info = NULL;
+
+	
+	ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT transfer requested (call-id:0x%08x)\n", callid);
+
+	chaniter = ftdm_span_get_chan_iterator(signal_data->ftdm_span, NULL);
+	for (curr = chaniter; curr; curr = ftdm_iterator_next(curr)) {
+		tmp_info = (sngisdn_chan_data_t*)((ftdm_channel_t*)ftdm_iterator_current(curr))->call_data;
+
+		/* When testing vs Asterisk, the most signifant byte is dropped */
+		if (!(callid & 0xff000000)) {
+			/* Only compare 3 bytes then */
+
+			if ((tmp_info->transfer_data.tdata.nortel_rlt.callid & 0xffffff) == callid) {
+				bleg = (ftdm_channel_t*)ftdm_iterator_current(curr);
+				break;
+			}
+		} else {
+			if (tmp_info->transfer_data.tdata.nortel_rlt.callid == callid) {
+				bleg = (ftdm_channel_t*)ftdm_iterator_current(curr);
+				break;
+			}
+		}
+	}
+
+	if (bleg) {
+		ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT transfer b-leg found span:%d chan:%d\n", bleg->physical_span_id, bleg->physical_chan_id);
+
+		sngisdn_info->bridge_data.peer_chan = bleg;
+
+		sngisdn_rltthirdparty_respond(ftdmchan);
+		sngisdn_snd_fac_req(ftdmchan);
+		ftdm_usrmsg_free(&ftdmchan->usrmsg);
+		
+		sngisdn_send_signal(sngisdn_info, FTDM_SIGEVENT_BRIDGE);
+	}
+
+	ftdm_iterator_free(chaniter);
+	return;
 }
 
 
@@ -260,7 +330,7 @@ ftdm_status_t sngisdn_att_transfer_process_dtmf(ftdm_channel_t *ftdmchan, const 
 			sngisdn_info->transfer_data.response = FTDM_TRANSFER_RESPONSE_INVALID;
 		}
 		if (signal_data->transfer_timeout) {
-			ftdm_sched_cancel_timer(signal_data->sched, sngisdn_info->timers[SNGISDN_CHAN_TIMER_ATT_TRANSFER]);
+			ftdm_sched_cancel_timer(signal_data->sched, sngisdn_info->timers[SNGISDN_CHAN_TIMER_TRANSFER]);
 		}
 
 		if (sngisdn_info->transfer_data.response == FTDM_TRANSFER_RESPONSE_OK &&

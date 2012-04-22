@@ -61,6 +61,53 @@ ftdm_sngisdn_data_t					g_sngisdn_data;
 SNGISDN_ENUM_NAMES(SNGISDN_TRANSFER_TYPE_NAMES, SNGISDN_TRANSFER_TYPE_STRINGS)
 SNGISDN_STR2ENUM(ftdm_str2sngisdn_transfer_type, sngisdn_transfer_type2str, sngisdn_transfer_type_t, SNGISDN_TRANSFER_TYPE_NAMES, SNGISDN_TRANSFER_INVALID)
 
+
+static void *asn_malloc(uint32_t size)
+{
+	return ftdm_malloc(size);
+}
+
+static char *asn_strdup(char *str)
+{
+	return ftdm_strdup(str);
+}
+
+static void asn_free(void *ptr)
+{
+	return ftdm_free(ptr);
+}
+
+static void asn_log(uint8_t level, const char *fmt, ...)
+{
+	char    *data;
+	int     ret;
+	va_list ap;
+
+	va_start(ap, fmt);
+	ret = ftdm_vasprintf(&data, fmt, ap);
+	if (ret == -1) {
+		return;
+	}
+
+	switch (level) {
+		case ASN_LOGLEVEL_DEBUG:
+			ftdm_log(FTDM_LOG_DEBUG, "asn_isdn->%s", data);
+			break;
+		case ASN_LOGLEVEL_ERROR:
+			ftdm_log(FTDM_LOG_ERROR, "asn_isdn->%s", data);
+			break;
+		case ASN_LOGLEVEL_CRIT:
+			ftdm_log(FTDM_LOG_CRIT, "asn_isdn->%s", data);
+			break;
+		default:
+			ftdm_log(FTDM_LOG_INFO, "asn_isdn->%s", data);
+			break;
+	}
+	ftdm_safe_free(data);
+	return;
+}
+
+
 ftdm_state_map_t sangoma_isdn_state_map = {
 	{
 	{
@@ -636,6 +683,7 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 	ftdm_sigmsg_t			sigev;
 	ftdm_channel_state_t	initial_state;
 	sngisdn_chan_data_t		*sngisdn_info = ftdmchan->call_data;
+	sngisdn_span_data_t		*signal_data = ftdmchan->span->signal_data;
 	uint8_t					state_change = 0;
 
 	memset(&sigev, 0, sizeof(sigev));
@@ -686,15 +734,11 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 				ftdm_signaling_status_t sigstatus;
 				ftdm_span_get_sig_status(ftdmchan->span, &sigstatus);
 				if (ftdm_test_flag(ftdmchan, FTDM_CHANNEL_IN_ALARM)) {
-					sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*)ftdmchan->span->signal_data;
-							
 					ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "Requesting Physical Line activation\n");
 					sngisdn_set_flag(sngisdn_info, FLAG_ACTIVATING);
 					ftdm_sangoma_isdn_wakeup_phy(ftdmchan);
 					ftdm_sched_timer(signal_data->sched, "timer_t3", signal_data->timer_t3*1000, sngisdn_t3_timeout, (void*) sngisdn_info, NULL);
 				} else if (sigstatus == FTDM_SIG_STATE_DOWN) {
-					sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*)ftdmchan->span->signal_data;
-					
 					ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "Requesting Q.921 Line activation\n");
 					sngisdn_set_flag(sngisdn_info, FLAG_ACTIVATING);
 					sngisdn_snd_info_req(ftdmchan);
@@ -710,7 +754,7 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 	case FTDM_CHANNEL_STATE_PROCEED:
 		{
 			if (ftdm_test_flag(ftdmchan, FTDM_CHANNEL_OUTBOUND)) {
-				/*OUTBOUND...so we were told by the line of this so noifiy the user*/
+				/*OUTBOUND...so we were told by the line of this so notify the user*/
 				sngisdn_send_signal(sngisdn_info, FTDM_SIGEVENT_PROCEED);
 				
 				if (sngisdn_test_flag(sngisdn_info, FLAG_MEDIA_READY)) {
@@ -749,7 +793,7 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 			} else {
 				/* Send a progress message, indicating: Call is not end-to-end ISDN, further call progress may be available */
 				ftdm_sngisdn_progind_t prog_ind = {SNGISDN_PROGIND_LOC_USER, SNGISDN_PROGIND_DESCR_NETE_ISDN};
-				sngisdn_snd_progress(ftdmchan, prog_ind);				
+				sngisdn_snd_progress(ftdmchan, prog_ind);
 			}
 		}
 		break;
@@ -769,16 +813,31 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 			/* check if the channel is inbound or outbound */
 			if (ftdm_test_flag(ftdmchan, FTDM_CHANNEL_OUTBOUND)) {
 				/* OUTBOUND ... so we were told by the line that the other side answered */
-				
 				sngisdn_send_signal(sngisdn_info, FTDM_SIGEVENT_UP);
 
 				if (ftdmchan->span->trunk_type == FTDM_TRUNK_BRI_PTMP &&
-					((sngisdn_span_data_t*)ftdmchan->span->signal_data)->signalling == SNGISDN_SIGNALING_NET) {
+					signal_data->signalling == SNGISDN_SIGNALING_NET) {
 					/* Assign the call to a specific equipment */
 					sngisdn_snd_con_complete(ftdmchan);
 				}
+
+				if (signal_data->signalling == SNGISDN_SIGNALING_CPE) {
+					if (sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
+						rlt_request_transfer(ftdmchan);
+					}
+				}
 			} else {
 				/* INBOUND ... so FS told us it just answered ... tell the stack */
+				if (signal_data->signalling == SNGISDN_SIGNALING_NET) {
+					if (sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_INVOKE) && 
+						!sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
+	
+						ftdm_sngisdn_progind_t prog_ind = {SNGISDN_PROGIND_LOC_USER, SNGISDN_PROGIND_DESCR_IB_AVAIL};
+						sngisdn_snd_alert(ftdmchan, prog_ind);
+						/* Free usrmsg, otherwise we will re-send it in the CONNECT message */
+						ftdm_usrmsg_free(&ftdmchan->usrmsg);
+					}
+				}
 				sngisdn_snd_connect(ftdmchan);
 			}
 		}
@@ -835,8 +894,8 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 						break;
 					case FTDM_CHANNEL_STATE_PROCEED:
 						if (!ftdm_test_flag(ftdmchan, FTDM_CHANNEL_OUTBOUND)) {
-							if (((sngisdn_span_data_t*)(ftdmchan->span->signal_data))->switchtype == SNGISDN_SWITCH_4ESS ||
-							    ((sngisdn_span_data_t*)(ftdmchan->span->signal_data))->switchtype == SNGISDN_SWITCH_5ESS) {
+							if (signal_data->switchtype == SNGISDN_SWITCH_4ESS ||
+							    signal_data->switchtype == SNGISDN_SWITCH_5ESS) {
 							
 								/* When using 5ESS, if the user wants to clear an inbound call, the correct procedure is to send a PROGRESS with in-band info available, and play tones. Then send a DISCONNECT. If we reached this point, it means user did not try to play-tones, so send a RELEASE because remote side does not expect DISCONNECT in state 3 */
 								sngisdn_snd_release(ftdmchan, 0);
@@ -990,6 +1049,7 @@ static FIO_CHANNEL_OUTGOING_CALL_FUNCTION(ftdm_sangoma_isdn_outgoing_call)
 	
 	return status;
 }
+
 static FIO_CHANNEL_GET_SIG_STATUS_FUNCTION(ftdm_sangoma_isdn_get_chan_sig_status)
 {
 	if (ftdm_test_flag(ftdmchan, FTDM_CHANNEL_SIG_UP)) {
@@ -1121,6 +1181,7 @@ static ftdm_status_t ftdm_sangoma_isdn_stop(ftdm_span_t *span)
 
 	ftdm_sched_destroy(&signal_data->sched);
 	ftdm_queue_destroy(&signal_data->event_queue);
+	
 	for (i = 0 ; i < signal_data->num_local_numbers ; i++) {
 		if (signal_data->local_numbers[i] != NULL) {
 			ftdm_safe_free(signal_data->local_numbers[i]);
@@ -1275,6 +1336,8 @@ static FIO_CONFIGURE_SPAN_SIGNALING_FUNCTION(ftdm_sangoma_isdn_span_config)
 static FIO_SIG_LOAD_FUNCTION(ftdm_sangoma_isdn_init)
 {
 	unsigned i;
+
+	isdn_asn_interface_t isdn_interface;
 	ftdm_log(FTDM_LOG_INFO, "Loading ftmod_sangoma_isdn...\n");
 
 	memset(&g_sngisdn_data, 0, sizeof(g_sngisdn_data));
@@ -1315,9 +1378,16 @@ static FIO_SIG_LOAD_FUNCTION(ftdm_sangoma_isdn_init)
 		ftdm_mutex_create(&g_sngisdn_data.ccs[i].mutex);
 	}
 	
-	/* initalize sng_isdn library */
-
 	ftdm_assert_return(!sng_isdn_init(&g_sngisdn_event_interface), FTDM_FAIL, "Failed to initialize stack\n");
+
+	memset(&isdn_interface, 0, sizeof(isdn_interface));
+	isdn_interface.malloc = asn_malloc;
+	isdn_interface.strdup = asn_strdup;
+	isdn_interface.free = asn_free;
+	isdn_interface.log = asn_log;
+	
+	isdn_asn_init(&isdn_interface);
+	
 	return FTDM_SUCCESS;
 }
 

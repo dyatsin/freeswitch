@@ -33,7 +33,6 @@
  */
 
 #include "ftmod_sangoma_isdn.h"
-#define SNGISDN_Q931_FACILITY_IE_ID 0x1C
 
 /* ftmod_sangoma_isdn specific enum look-up functions */
 
@@ -140,7 +139,6 @@ void clear_call_data(sngisdn_chan_data_t *sngisdn_info)
 		
 	sngisdn_info->suInstId = 0;
 	sngisdn_info->spInstId = 0;
-	sngisdn_info->globalFlg = 0;
 	sngisdn_info->flags = 0;
 	sngisdn_info->transfer_data.type = SNGISDN_TRANSFER_NONE;
 
@@ -463,16 +461,16 @@ ftdm_status_t get_calling_subaddr(ftdm_channel_t *ftdmchan, CgPtySad *cgPtySad)
 	return FTDM_SUCCESS;
 }
 
-ftdm_status_t get_facility_ie(ftdm_channel_t *ftdmchan, FacilityStr *facilityStr)
+ftdm_status_t get_facility_ie(ftdm_channel_t *ftdmchan, ftdm_sngisdn_event_id_t event_id, FacilityStr *facilityStr)
 {
 	if (!facilityStr->eh.pres) {
 		return FTDM_FAIL;
 	}
 
-	return get_facility_ie_str(ftdmchan, facilityStr->facilityStr.val, facilityStr->facilityStr.len);
+	return get_facility_ie_str(ftdmchan, event_id, facilityStr->facilityStr.val, facilityStr->facilityStr.len);
 }
 
-ftdm_status_t get_facility_ie_str(ftdm_channel_t *ftdmchan, uint8_t *data, uint8_t data_len)
+ftdm_status_t get_facility_ie_str(ftdm_channel_t *ftdmchan, ftdm_sngisdn_event_id_t event_id, uint8_t *data, uint8_t data_len)
 {
 	sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*) ftdmchan->span->signal_data;
 	
@@ -489,7 +487,9 @@ ftdm_status_t get_facility_ie_str(ftdm_channel_t *ftdmchan, uint8_t *data, uint8
 		
 		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "Raw Facility IE copied available\n");
 	} else {
-		/* Call libsng_isdn to process facility IE's here */
+#ifdef ISDN_ASN
+		sngisdn_handle_asn(ftdmchan, event_id, data, data_len);
+#endif
 	}
 	return FTDM_SUCCESS;
 }
@@ -1509,15 +1509,15 @@ ftdm_status_t sngisdn_add_raw_data(sngisdn_chan_data_t *sngisdn_info, uint8_t* d
 
 void sngisdn_send_signal(sngisdn_chan_data_t *sngisdn_info, ftdm_signal_event_t event_id)
 {
-	ftdm_sigmsg_t sigev;
+	ftdm_sigmsg_t sigmsg;
 	ftdm_channel_t *ftdmchan = sngisdn_info->ftdmchan;
 
-	memset(&sigev, 0, sizeof(sigev));
+	memset(&sigmsg, 0, sizeof(sigmsg));
 
-	sigev.chan_id = ftdmchan->chan_id;
-	sigev.span_id = ftdmchan->span_id;
-	sigev.channel = ftdmchan;
-	sigev.event_id = event_id;
+	sigmsg.chan_id = ftdmchan->chan_id;
+	sigmsg.span_id = ftdmchan->span_id;
+	sigmsg.channel = ftdmchan;
+	sigmsg.event_id = event_id;
 
 	if (sngisdn_info->variables) {
 		/*
@@ -1525,7 +1525,7 @@ void sngisdn_send_signal(sngisdn_chan_data_t *sngisdn_info, ftdm_signal_event_t 
 		* will be cleared after sigev is processed by user. Set
 		* local pointer to NULL so we do not attempt to
 		* destroy it */
-		sigev.variables = sngisdn_info->variables;
+		sigmsg.variables = sngisdn_info->variables;
 		sngisdn_info->variables = NULL;
 	}
 
@@ -1536,16 +1536,23 @@ void sngisdn_send_signal(sngisdn_chan_data_t *sngisdn_info, ftdm_signal_event_t 
 		* local pointer to NULL so we do not attempt to
 		* destroy it */
 		
-		sigev.raw.data = sngisdn_info->raw_data;
-		sigev.raw.len = sngisdn_info->raw_data_len;
+		sigmsg.raw.data = sngisdn_info->raw_data;
+		sigmsg.raw.len = sngisdn_info->raw_data_len;
 
 		sngisdn_info->raw_data = NULL;
 		sngisdn_info->raw_data_len = 0;
 	}
-	if (event_id == FTDM_SIGEVENT_TRANSFER_COMPLETED) {
-		sigev.ev_data.transfer_completed.response = sngisdn_info->transfer_data.response;
+	switch (event_id) {
+		case FTDM_SIGEVENT_BRIDGE:
+			sigmsg.ev_data.bridge.peer_chan = sngisdn_info->bridge_data.peer_chan;
+			break;
+		case FTDM_SIGEVENT_TRANSFER_COMPLETED:
+			sigmsg.ev_data.transfer_completed.response = sngisdn_info->transfer_data.response;
+			break;
+		default:
+			break;
 	}
-	ftdm_span_send_signal(ftdmchan->span, &sigev);
+	ftdm_span_send_signal(ftdmchan->span, &sigmsg);
 }
 
 

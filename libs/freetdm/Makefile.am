@@ -233,7 +233,11 @@ ftmod_sangoma_isdn_la_SOURCES = \
 	$(SRC)/ftmod/ftmod_sangoma_isdn/ftmod_sangoma_isdn_stack_cfg.c \
 	$(SRC)/ftmod/ftmod_sangoma_isdn/ftmod_sangoma_isdn_stack_rcv.c \
 	$(SRC)/ftmod/ftmod_sangoma_isdn/ftmod_sangoma_isdn_stack_hndl.c \
-	$(SRC)/ftmod/ftmod_sangoma_isdn/ftmod_sangoma_isdn_stack_out.c
+	$(SRC)/ftmod/ftmod_sangoma_isdn/ftmod_sangoma_isdn_stack_out.c \
+	$(SRC)/ftmod/ftmod_sangoma_isdn/ftmod_sangoma_isdn_asn.c \
+	$(SRC)/ftmod/ftmod_sangoma_isdn/asn/isdn_asn.c \
+	$(SRC)/ftmod/ftmod_sangoma_isdn/asn/rose.c \
+	$(SRC)/ftmod/ftmod_sangoma_isdn/asn/rlt.c 
 
 ftmod_sangoma_isdn_la_CFLAGS  = $(FTDM_CFLAGS) $(AM_CFLAGS) -D_GNU_SOURCE
 ftmod_sangoma_isdn_la_LDFLAGS = -shared -module -avoid-version -lsng_isdn

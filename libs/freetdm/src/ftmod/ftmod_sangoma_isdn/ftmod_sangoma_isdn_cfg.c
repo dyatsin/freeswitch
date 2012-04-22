@@ -381,6 +381,8 @@ ftdm_status_t ftmod_isdn_parse_cfg(ftdm_conf_parameter_t *ftdm_parameters, ftdm_
 			}
 		} else if (!strcasecmp(var, "facility-timeout")) {
 			parse_timer(val, &signal_data->facility_timeout);
+		} else if (!strcasecmp(var, "transfer")) {
+			parse_yesno(var, val, &signal_data->transfer);
 		} else if (!strcasecmp(var, "transfer-timeout")) {
 			parse_timer(val, &signal_data->transfer_timeout);
 		} else if (!strcasecmp(var, "att-remove-dtmf")) {

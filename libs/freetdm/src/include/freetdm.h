@@ -206,6 +206,9 @@ FTDM_STR2ENUM_P(ftdm_str2ftdm_chan_type, ftdm_chan_type2str, ftdm_chan_type_t)
  */
 typedef void (*ftdm_logger_t)(const char *file, const char *func, int line, int level, const char *fmt, ...);
 
+/*! \brief Peer function prototype to be used for peer handler */
+typedef ftdm_channel_t * (*ftdm_peer_t)(ftdm_channel_t *ftdmchan);
+
 /*! \brief Data queue operation functions
  *  you can use ftdm_global_set_queue_handler if you want to override the default implementation (not recommended)
  */
@@ -451,13 +454,14 @@ typedef enum {
 	FTDM_SIGEVENT_TRACE_RAW, /*!<Raw trace event */
 	FTDM_SIGEVENT_INDICATION_COMPLETED, /*!< Last requested indication was completed */
 	FTDM_SIGEVENT_DIALING, /*!< Outgoing call just started */
+	FTDM_SIGEVENT_BRIDGE, /*!< Request to bridge current channel with another channel */
 	FTDM_SIGEVENT_TRANSFER_COMPLETED, /*!< Transfer request is completed */
 	FTDM_SIGEVENT_INVALID, /*!<Invalid */
 } ftdm_signal_event_t;
 #define SIGNAL_STRINGS "START", "STOP", "RELEASED", "UP", "FLASH", "PROCEED", "RINGING", "PROGRESS", \
 		"PROGRESS_MEDIA", "ALARM_TRAP", "ALARM_CLEAR", \
 		"COLLECTED_DIGIT", "ADD_CALL", "RESTART", "SIGSTATUS_CHANGED", "FACILITY", \
-		"TRACE", "TRACE_RAW", "INDICATION_COMPLETED", "DIALING", "TRANSFER_COMPLETED", "INVALID"
+		"TRACE", "TRACE_RAW", "INDICATION_COMPLETED", "DIALING", "BRIDGE", "TRANSFER_COMPLETED", "INVALID"
 /*! \brief Move from string to ftdm_signal_event_t and viceversa */
 FTDM_STR2ENUM_P(ftdm_str2ftdm_signal_event, ftdm_signal_event2str, ftdm_signal_event_t)
 
@@ -582,6 +586,10 @@ typedef struct {
 	ftdm_transfer_response_t response;
 } ftdm_event_transfer_completed_t;
 
+typedef struct {
+	ftdm_channel_t *peer_chan;
+} ftdm_event_bridge_t;
+
 typedef void * ftdm_variable_container_t;
 
 typedef struct {
@@ -604,6 +612,7 @@ struct ftdm_sigmsg {
 		ftdm_event_collected_t collected; /*!< valid if event_id is FTDM_SIGEVENT_COLLECTED_DIGIT */
 		ftdm_event_indication_completed_t indication_completed; /*!< valid if the event_id is FTDM_SIGEVENT_INDICATION_COMPLETED */
 		ftdm_event_transfer_completed_t transfer_completed;
+		ftdm_event_bridge_t bridge; /*!<valid if event_id is FTDM_SIGEVENT_BRIDGE */
 	} ev_data;
 	ftdm_raw_data_t raw;
 };
@@ -1796,6 +1805,13 @@ FT_DECLARE(ftdm_status_t) ftdm_global_set_memory_handler(ftdm_memory_handler_t *
 /*! \brief Set the crash policy for the library */
 FT_DECLARE(void) ftdm_global_set_crash_policy(ftdm_crash_policy_t policy);
 
+/*! 
+ *\brief Set the default peer handler for the library.
+ * The partner handler returns a peer channel if this channel
+ * is currently bridged to another freetdm channel.
+ */
+FT_DECLARE(void) ftdm_global_set_peer(ftdm_peer_t peer);
+
 /*! \brief Set the logger handler for the library */
 FT_DECLARE(void) ftdm_global_set_logger(ftdm_logger_t logger);
 
@@ -1811,6 +1827,7 @@ FT_DECLARE(void) ftdm_global_set_config_directory(const char *path);
 /*! \brief Check if the FTDM library is initialized and running */
 FT_DECLARE(ftdm_bool_t) ftdm_running(void);
 
+FT_DECLARE_DATA extern ftdm_peer_t ftdm_peer;
 FT_DECLARE_DATA extern ftdm_logger_t ftdm_log;
 
 /*! \brief Basic transcoding function prototype */
