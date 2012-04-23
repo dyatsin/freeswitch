@@ -198,12 +198,12 @@ void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan)
 
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 
-	usrmsg = ftdm_malloc(sizeof(*usrmsg));
-	
-	ftdm_assert(usrmsg, "Failed to malloc");
-
-	memset(usrmsg, 0, sizeof(*usrmsg));
-	
+	usrmsg = ftdmchan->usrmsg;
+	if (!usrmsg) {
+		usrmsg = ftdm_malloc(sizeof(*usrmsg));
+		ftdm_assert(usrmsg, "Failed to malloc");
+		memset(usrmsg, 0, sizeof(*usrmsg));
+	}
 	/* DAVIDY TODO: handle case where we fail!! */
 
 	isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
