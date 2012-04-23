@@ -199,7 +199,7 @@ int rlt_encode_thirdparty_reject(isdn_asn_t *isdn_asn, service_t *service)
 /* ===================DECODE FUNCTIONS ========================== */
 int asn_decode_rlt_operationid(isdn_asn_t *isdn_asn, uint8_t **data, uint32_t len)
 {
-	uint8_t operation_value, operation_len, sequence_len;
+	uint8_t operation_value, operation_len, sequence_len, error_value, error_len;
 	uint8_t *ptr = *data;
 
 	switch(isdn_asn->component) {
@@ -221,7 +221,7 @@ int asn_decode_rlt_operationid(isdn_asn_t *isdn_asn, uint8_t **data, uint32_t le
 								return 0;
 							}
 							break;
-						case 0x02: /* Operation Tag */
+						case 0x02: /* Operation Tag */ /* TODO: This is actually an integer tag */
 							isdn_asn_log(ASN_LOGLEVEL_DEBUG, "Decoding Operation Tag\n");
 							operation_len = *ptr++;
 							if (operation_len != 0x01) {
@@ -260,7 +260,24 @@ int asn_decode_rlt_operationid(isdn_asn_t *isdn_asn, uint8_t **data, uint32_t le
 			}
 			break;
 		case ASN_ROSE_COMP_RET_ERROR:
-			isdn_asn_log(ASN_LOGLEVEL_ERROR, "Not implemented (%s:%d)\n", __FUNCTION__, __LINE__);
+			while((ptr - *data) < len) {
+				switch(*ptr++) {
+					case 0x02: /* Operation Tag */ /* TODO: This is actually an integer tag */
+						isdn_asn_log(ASN_LOGLEVEL_DEBUG, "Decoding Error Tag\n");
+						error_len = *ptr++;
+						if (error_len != 0x01) {
+							isdn_asn_log(ASN_LOGLEVEL_DEBUG, "Invalid error length:%d (expected:%d)\n", error_len, 0x01);
+							return -1;
+						}
+						error_value = *ptr++;
+						isdn_asn->params.operationid_reterror.err_value = error_value;
+						break;
+					default:
+						isdn_asn_log(ASN_LOGLEVEL_ERROR, "Invalid tag %x\n", *(ptr - 1));
+						return -1;
+							
+				}
+			}
 			break;
 		case ASN_ROSE_COMP_REJECT:
 			isdn_asn_log(ASN_LOGLEVEL_ERROR, "Not implemented (%s:%d)\n", __FUNCTION__, __LINE__);
