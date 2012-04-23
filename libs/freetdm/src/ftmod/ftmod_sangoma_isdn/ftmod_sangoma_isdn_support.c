@@ -487,9 +487,7 @@ ftdm_status_t get_facility_ie_str(ftdm_channel_t *ftdmchan, ftdm_sngisdn_event_i
 		
 		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "Raw Facility IE copied available\n");
 	} else {
-#ifdef ISDN_ASN
 		sngisdn_handle_asn(ftdmchan, event_id, data, data_len);
-#endif
 	}
 	return FTDM_SUCCESS;
 }
