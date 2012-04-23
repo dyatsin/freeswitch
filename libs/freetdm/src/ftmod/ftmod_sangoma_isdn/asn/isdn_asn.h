@@ -107,8 +107,8 @@ typedef struct rose_sequence_tag {
 } rose_sequence_tag_t;
 
 typedef struct rose_error_tag {
-
-
+	uint8_t len;
+	uint8_t value;
 } rose_error_tag_t;
 
 typedef struct rose_problem_tag {

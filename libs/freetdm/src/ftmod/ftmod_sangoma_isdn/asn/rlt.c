@@ -103,8 +103,21 @@ int rlt_encode_operationid_ret_result(isdn_asn_t *isdn_asn, service_t *service)
 
 int rlt_encode_operationid_ret_error(isdn_asn_t *isdn_asn, service_t *service)
 {
-	/* TODO: Implement me */
-	return -1;
+	rose_tag_t *invoke_tag;
+	rose_tag_t *error_tag;
+
+	rose_op_t *rose_op = &service->op.rose;
+	rose_op->asn_service_id = ASN_ROSE_SERVICE_ID_DMS_RLT;
+
+	invoke_tag = new_tag(rose_op, ROSE_TAG_INVOKE);
+	invoke_tag->tag.invoke.len = 1;
+	invoke_tag->tag.invoke.identifier = ASN_RLT_OPERATION_INDICATION;
+	
+	error_tag = new_tag(rose_op, ROSE_TAG_ERROR);
+	error_tag->tag.error.len = 1;
+	error_tag->tag.error.value = isdn_asn->params.operationid_reterror.err_value;
+
+	return 0;
 }
 
 int rlt_encode_operationid_reject(isdn_asn_t *isdn_asn, service_t *service)

@@ -834,7 +834,7 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 	
 						ftdm_sngisdn_progind_t prog_ind = {SNGISDN_PROGIND_LOC_USER, SNGISDN_PROGIND_DESCR_IB_AVAIL};
 						sngisdn_snd_alert(ftdmchan, prog_ind);
-						/* Free usrmsg, otherwise we will re-send it in the CONNECT message */
+
 						ftdm_usrmsg_free(&ftdmchan->usrmsg);
 					}
 				}

@@ -288,8 +288,12 @@ void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan)
 		ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT ability allowed (call-id:0x%08x)\n", isdn_asn.params.operationid_retresult.callid);
 	} else {
 		isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
-		isdn_asn.invoke_id = ASN_RLT_NOTALLOWED;
-		isdn_asn.component = ASN_ROSE_COMP_RET_RESULT;
+		isdn_asn.invoke_id = ASN_RLT_OPERATIONIND;
+		isdn_asn.component = ASN_ROSE_COMP_RET_ERROR;
+		
+		isdn_asn.params.operationid_reterror.err_value = ASN_RLT_NOT_ALLOWED;
+
+		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "RLT ability not allowed\n");
 	}
 
 	if (isdn_asn_encode(&isdn_asn, &data[2], &datalen)) {

@@ -38,7 +38,7 @@
 
 
 #define ASN_ROSE_TAG_INVOKE		0x02
-#define ASN_ROSE_TAG_OPERATION	0x02
+#define ASN_ROSE_TAG_INTEGER	0x02
 
 enum2asn_t rose_sequences [] = {
 	{ ROSE_SEQUENCE_TAG_SEQUENCE,	0x30 },
@@ -83,17 +83,14 @@ int asn_generate_rose(rose_op_t *rose_op, uint8_t **buffer, uint32_t *max)
 				/* TODO: Implement me */
 				break;
 			case ROSE_TAG_OPERATION:
-				*ptr = ASN_ROSE_TAG_OPERATION;
-				ptr++;
-				remaining--;
+				*ptr = ASN_ROSE_TAG_INTEGER;
+				ptr++; remaining--;
 
 				*ptr = tag->tag.operation.len;
-				ptr++;
-				remaining--;
+				ptr++; remaining--;
 
 				*ptr = tag->tag.operation.value;
-				ptr++;
-				remaining--;
+				ptr++; remaining--;
 
 				break;
 			case ROSE_TAG_SEQUENCE:
@@ -105,7 +102,15 @@ int asn_generate_rose(rose_op_t *rose_op, uint8_t **buffer, uint32_t *max)
 	
 				break;
 			case ROSE_TAG_ERROR:
-				/* TODO: Implement me */
+				*ptr = ASN_ROSE_TAG_INTEGER;
+				ptr++; remaining--;
+
+				*ptr = tag->tag.error.len;
+				ptr++; remaining--;
+
+				*ptr = tag->tag.error.value;
+				ptr++; remaining--;
+				
 				break;
 			case ROSE_TAG_PROBLEM:
 				/* TODO: Implement me */

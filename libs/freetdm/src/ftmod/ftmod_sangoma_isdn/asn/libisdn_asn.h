@@ -57,8 +57,14 @@ typedef enum {
 typedef enum {
 	ASN_RLT_OPERATIONIND = 0x01,
 	ASN_RLT_THIRDPARTY = 0x02,
-	ASN_RLT_NOTALLOWED = 0x03, /* TODO: Confirm value for this enum */
 } isdn_asn_rlt_invoke_id_e;
+
+typedef enum {
+	ASN_RLT_BRIDGE_FAIL = 0x10,
+	ASN_RLT_CALLID_NOT_FOUND = 0x11,
+	ASN_RLT_NOT_ALLOWED = 0x12,
+	ASN_RLT_SWITCH_EQUIP_CONG = 0x13,
+} isdn_asn_rlt_error_val_e;
 
 /* Component Type */
 typedef enum {
@@ -97,14 +103,19 @@ typedef struct {
 	uint8_t callid_len;
 } rlt_thirdparty_invoke_params_t;
 
+typedef struct {
+	isdn_asn_rlt_error_val_e err_value;
+} rlt_operationid_reterror_params_t;
+
 typedef struct isdn_asn {
 	isdn_asn_rose_service_id_e service;
 	uint8_t invoke_id;
 	isdn_asn_rose_comp_e component;
 
 	union {
-		rlt_operationid_retresult_params_t operationid_retresult;
-		rlt_thirdparty_invoke_params_t thirdparty_invoke;
+		rlt_operationid_retresult_params_t	operationid_retresult;
+		rlt_operationid_reterror_params_t	operationid_reterror;
+		rlt_thirdparty_invoke_params_t		thirdparty_invoke;
 	} params;
 } isdn_asn_t;
 
