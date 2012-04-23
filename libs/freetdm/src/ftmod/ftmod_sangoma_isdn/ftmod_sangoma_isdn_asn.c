@@ -34,6 +34,8 @@
 
 #include "ftmod_sangoma_isdn.h"
 
+
+
 void sngisdn_handle_asn(ftdm_channel_t *ftdmchan, ftdm_sngisdn_event_id_t event_id, uint8_t *data, uint32_t data_len)
 {
 	isdn_asn_t isdn_asn;
@@ -124,6 +126,25 @@ void sngisdn_handle_asn(ftdm_channel_t *ftdmchan, ftdm_sngisdn_event_id_t event_
 	
 										sngisdn_set_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND);
 										break;
+								}
+								break;
+							case ASN_ROSE_COMP_RET_ERROR:
+								switch (isdn_asn.invoke_id) {
+									case ASN_RLT_OPERATIONIND:
+										{
+											uint8_t err_value = isdn_asn.params.operationid_reterror.err_value;
+											ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT ability not supported reason:%s(%d)\n",
+													(err_value == ASN_RLT_BRIDGE_FAIL) ? "Bridge Failed" :
+													(err_value == ASN_RLT_CALLID_NOT_FOUND) ? "Call ID Not found" :
+													(err_value == ASN_RLT_NOT_ALLOWED) ? "RLT Not allowed" :
+													(err_value == ASN_RLT_SWITCH_EQUIP_CONG) ? "Switching equipment congestion" :
+													"unknown", err_value);
+											
+											sngisdn_info->transfer_data.tdata.nortel_rlt.callid = isdn_asn.params.operationid_retresult.callid;
+											sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len = isdn_asn.params.operationid_retresult.callid_len;
+		
+											break;
+										}
 								}
 								break;
 							default:
