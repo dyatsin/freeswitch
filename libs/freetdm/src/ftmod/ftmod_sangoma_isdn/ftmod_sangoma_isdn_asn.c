@@ -150,7 +150,6 @@ void sngisdn_rltthirdparty_invoke(ftdm_channel_t *ftdmchan, uint32_t callid, uin
 	isdn_asn_t isdn_asn;
 	uint8_t* data;
 	uint32_t datalen;
-	//sngisdn_chan_data_t *sngisdn_info = ftdmchan->call_data;
 
 	datalen = 200;
 	data = ftdm_malloc(datalen);
@@ -158,11 +157,12 @@ void sngisdn_rltthirdparty_invoke(ftdm_channel_t *ftdmchan, uint32_t callid, uin
 
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 
-	usrmsg = ftdm_malloc(sizeof(*usrmsg));
-	
-	ftdm_assert(usrmsg, "Failed to malloc");
-
-	memset(usrmsg, 0, sizeof(*usrmsg));
+	usrmsg = ftdmchan->usrmsg;
+	if (!usrmsg) {
+		usrmsg = ftdm_malloc(sizeof(*usrmsg));	
+		ftdm_assert(usrmsg, "Failed to malloc");
+		memset(usrmsg, 0, sizeof(*usrmsg));
+	}
 
 	ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT transfer requested (call-id:0x%08x)\n", callid);
 	

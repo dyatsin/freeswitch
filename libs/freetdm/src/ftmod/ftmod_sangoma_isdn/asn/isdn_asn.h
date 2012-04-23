@@ -195,6 +195,7 @@ typedef struct asn_decoder {
 	asn_dec_func_t reject;
 } asn_decoder_t;
 
+void free_tags(rose_tag_t **intags);
 rose_tag_t *new_tag(rose_op_t *rose_op, rose_tag_e type);
 
 typedef struct {

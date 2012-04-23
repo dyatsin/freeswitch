@@ -66,31 +66,31 @@ int isdn_asn_encode(isdn_asn_t *isdn_asn, uint8_t *data, uint32_t *max)
 {
 	int i;
 	uint32_t remaining;
-	service_t asn_service;
+	service_t service;
 	uint8_t *ptr = data;	
 	int ret = -1;
 	
-	memset(&asn_service, 0, sizeof(asn_service));
+	memset(&service, 0, sizeof(service));
 
-	asn_service.service_disc = ASN_SERVICE_DISC_ROSE;
+	service.service_disc = ASN_SERVICE_DISC_ROSE;
 
 	for (i = 0; i < isdn_asn_array_len(asn_interfaces); i++) {
 		if (asn_interfaces[i].service_id == isdn_asn->service &&
 			asn_interfaces[i].invoke_id == isdn_asn->invoke_id) {
 			
-			asn_service.op.rose.asn_component = isdn_asn->component;
+			service.op.rose.asn_component = isdn_asn->component;
 			switch (isdn_asn->component) {
 				case ASN_ROSE_COMP_INVOKE:
-					ret =  asn_interfaces[i].encode.invoke(isdn_asn, &asn_service);
+					ret =  asn_interfaces[i].encode.invoke(isdn_asn, &service);
 					break;
 				case ASN_ROSE_COMP_RET_RESULT:
-					ret =  asn_interfaces[i].encode.ret_result(isdn_asn, &asn_service);
+					ret =  asn_interfaces[i].encode.ret_result(isdn_asn, &service);
 					break;
 				case ASN_ROSE_COMP_RET_ERROR:
-					ret =  asn_interfaces[i].encode.ret_error(isdn_asn, &asn_service);
+					ret =  asn_interfaces[i].encode.ret_error(isdn_asn, &service);
 					break;
 				case ASN_ROSE_COMP_REJECT:
-					ret =  asn_interfaces[i].encode.reject(isdn_asn, &asn_service);
+					ret =  asn_interfaces[i].encode.reject(isdn_asn, &service);
 					break;
 			}
 		}
@@ -105,7 +105,9 @@ int isdn_asn_encode(isdn_asn_t *isdn_asn, uint8_t *data, uint32_t *max)
 	/* Service discriminator */
 	*ptr = ASN_SERVICE_DISC_ROSE;
 	ptr++; remaining--;
-	ret = asn_generate_rose(&asn_service.op.rose, &ptr, &remaining);
+	ret = asn_generate_rose(&service.op.rose, &ptr, &remaining);
+
+	free_tags(&service.op.rose.tags);
 
 	*max = (*max - remaining);
 	return ret;
@@ -131,7 +133,19 @@ int isdn_asn_decode(isdn_asn_t *isdn_asn, uint8_t *data, uint32_t len)
 	return 0;
 }
 
-
+void free_tags(rose_tag_t **intags)
+{
+	rose_tag_t *tag = *intags;
+	*intags = NULL;
+	
+	if (tag->next) {
+		free_tags(&tag->next);
+	}
+	if (tag) {
+		isdn_asn_free(tag);
+	}
+	return;
+}
 
 rose_tag_t *new_tag(rose_op_t *rose_op, rose_tag_e type)
 {
