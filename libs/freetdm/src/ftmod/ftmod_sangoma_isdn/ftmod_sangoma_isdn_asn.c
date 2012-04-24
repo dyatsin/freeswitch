@@ -195,6 +195,8 @@ void sngisdn_rltthirdparty_invoke(ftdm_channel_t *ftdmchan, uint32_t callid, uin
 	
 	if (isdn_asn_encode(&isdn_asn, &data[2], &datalen)) {
 		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_ERROR, "Failed to encode return result\n");
+		ftdm_safe_free(data);
+		ftdm_safe_free(usrmsg);
 		return;
 	}
 
@@ -206,7 +208,7 @@ void sngisdn_rltthirdparty_invoke(ftdm_channel_t *ftdmchan, uint32_t callid, uin
 	ftdmchan->usrmsg = usrmsg;
 }
 
-void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan)
+void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan, sngisdn_rlt_error_t error)
 {
 	ftdm_usrmsg_t *usrmsg;
 	isdn_asn_t isdn_asn;
@@ -225,15 +227,29 @@ void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan)
 		ftdm_assert(usrmsg, "Failed to malloc");
 		memset(usrmsg, 0, sizeof(*usrmsg));
 	}
-	/* DAVIDY TODO: handle case where we fail!! */
-
+	
 	isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
 	isdn_asn.invoke_id = ASN_RLT_THIRDPARTY;
-	isdn_asn.component = ASN_ROSE_COMP_RET_RESULT;
+
+	switch(error) {
+		case SNGISDN_RLT_ERROR_NONE:
+			isdn_asn.component = ASN_ROSE_COMP_RET_RESULT;
+			break;
+		case SNGISDN_RLT_ERROR_NO_CALL_ID:
+			isdn_asn.component = ASN_ROSE_COMP_RET_ERROR;
+			isdn_asn.params.thirdparty_reterror.err_value = ASN_RLT_CALLID_NOT_FOUND;
+			break;
+		default:
+			ftdm_log_chan(ftdmchan, FTDM_LOG_ERROR, "Invalid error code for rltthirdparty_respond: %d\n", error);
+			ftdm_safe_free(data);
+			ftdm_safe_free(usrmsg);
+			return;
+	}	
 	
 	if (isdn_asn_encode(&isdn_asn, &data[2], &datalen)) {
 		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_ERROR, "Failed to encode return result\n");
-		return;
+		ftdm_safe_free(data);
+		ftdm_safe_free(usrmsg);
 	}
 
 	data[0] = SNGISDN_Q931_FACILITY_IE_ID;
@@ -264,6 +280,7 @@ void sngisdn_rltoperationid_invoke(ftdm_channel_t *ftdmchan)
 
 	if (isdn_asn_encode(&isdn_asn, &data[2], &datalen)) {
 		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_ERROR, "Failed to encode return result\n");
+		ftdm_safe_free(data);
 		return;
 	}
 
@@ -275,12 +292,11 @@ void sngisdn_rltoperationid_invoke(ftdm_channel_t *ftdmchan)
 }
 
 
-void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan)
+void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan, sngisdn_rlt_error_t error)
 {
 	isdn_asn_t isdn_asn;
 	uint8_t* data;
 	uint32_t datalen;	
-	const char *var = NULL;
 	sngisdn_chan_data_t *sngisdn_info = ftdmchan->call_data;
 
 	sngisdn_set_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND);
@@ -290,35 +306,30 @@ void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan)
 
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 
-	var = ftdm_usrmsg_get_var(ftdmchan->usrmsg, "isdn.rlt-operation");
-	if (!ftdm_strlen_zero(var) && !strncasecmp(var, "allowed", strlen("allowed"))) {
-		isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
-		isdn_asn.invoke_id = ASN_RLT_OPERATIONIND;
-		isdn_asn.component = ASN_ROSE_COMP_RET_RESULT;
+	isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
+	isdn_asn.invoke_id = ASN_RLT_OPERATIONIND;
 
-#ifndef WIN32
-		isdn_asn.params.operationid_retresult.callid = (uint32_t)(random() & 0xffffffff);
-#else
-		isdn_asn.params.operationid_retresult.callid = (uint32_t)(rand() & 0xffffffff);
-#endif
-		isdn_asn.params.operationid_retresult.callid_len = 4;
-				
-		sngisdn_info->transfer_data.tdata.nortel_rlt.callid = isdn_asn.params.operationid_retresult.callid;
-		sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len = 4;
-
-		ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT ability allowed (call-id:0x%08x)\n", isdn_asn.params.operationid_retresult.callid);
-	} else {
-		isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
-		isdn_asn.invoke_id = ASN_RLT_OPERATIONIND;
-		isdn_asn.component = ASN_ROSE_COMP_RET_ERROR;
-		
-		isdn_asn.params.operationid_reterror.err_value = ASN_RLT_NOT_ALLOWED;
-
-		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "RLT ability not allowed\n");
+	switch(error) {
+		case SNGISDN_RLT_ERROR_NONE:
+			ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT ability allowed (call-id:0x%08x)\n", isdn_asn.params.operationid_retresult.callid);
+			isdn_asn.component = ASN_ROSE_COMP_RET_RESULT;
+			isdn_asn.params.operationid_retresult.callid = sngisdn_info->transfer_data.tdata.nortel_rlt.callid;
+			isdn_asn.params.operationid_retresult.callid_len = sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len;
+			break;
+		case SNGISDN_RLT_ERROR_NOT_ALLOWED:
+			ftdm_log_chan_msg(ftdmchan, FTDM_LOG_DEBUG, "RLT ability not allowed\n");
+			isdn_asn.component = ASN_ROSE_COMP_RET_ERROR;
+			isdn_asn.params.thirdparty_reterror.err_value = ASN_RLT_NOT_ALLOWED;
+			break;
+		default:
+			ftdm_log_chan(ftdmchan, FTDM_LOG_ERROR, "Invalid error code for rltthirdparty_respond: %d\n", error);
+			ftdm_safe_free(data);
+			return;
 	}
 
 	if (isdn_asn_encode(&isdn_asn, &data[2], &datalen)) {
 		ftdm_log_chan_msg(ftdmchan, FTDM_LOG_ERROR, "Failed to encode return result\n");
+		ftdm_safe_free(data);
 		return;
 	}
 

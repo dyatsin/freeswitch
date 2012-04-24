@@ -237,7 +237,20 @@ void sngisdn_snd_alert(ftdm_channel_t *ftdmchan, ftdm_sngisdn_progind_t prog_ind
 	if (sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_INVOKE) &&
 		!sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
 
-		sngisdn_rltoperationid_respond(ftdmchan);
+		const char *var = NULL;
+		var = ftdm_usrmsg_get_var(ftdmchan->usrmsg, "isdn.rlt-operation");
+		if (!ftdm_strlen_zero(var) && !strncasecmp(var, "allowed", strlen("allowed"))) {
+
+#ifndef WIN32
+			sngisdn_info->transfer_data.tdata.nortel_rlt.callid = (uint32_t)(random() & 0xffffffff);
+#else
+			sngisdn_info->transfer_data.tdata.nortel_rlt.callid = (uint32_t)(rand() & 0xffffffff);
+#endif
+			sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len = 4;
+			sngisdn_rltoperationid_respond(ftdmchan, SNGISDN_RLT_ERROR_NONE);
+		} else {
+			sngisdn_rltoperationid_respond(ftdmchan, SNGISDN_RLT_ERROR_NOT_ALLOWED);
+		}
 	}
 
 	set_facility_ie(ftdmchan, &cnStEvnt.facilityStr);

@@ -107,6 +107,10 @@ typedef struct {
 	isdn_asn_rlt_error_val_e err_value;
 } rlt_operationid_reterror_params_t;
 
+typedef struct {
+	isdn_asn_rlt_error_val_e err_value;
+} rlt_thirdparty_reterror_params_t;
+
 typedef struct isdn_asn {
 	isdn_asn_rose_service_id_e service;
 	uint8_t invoke_id;
@@ -116,6 +120,7 @@ typedef struct isdn_asn {
 		rlt_operationid_retresult_params_t	operationid_retresult;
 		rlt_operationid_reterror_params_t	operationid_reterror;
 		rlt_thirdparty_invoke_params_t		thirdparty_invoke;
+		rlt_thirdparty_reterror_params_t	thirdparty_reterror;
 	} params;
 } isdn_asn_t;
 

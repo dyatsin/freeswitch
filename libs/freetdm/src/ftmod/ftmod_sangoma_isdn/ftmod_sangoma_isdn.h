@@ -214,6 +214,12 @@ SNGISDN_STR2ENUM_P(ftdm_str2sngisdn_transfer_type, sngisdn_transfer_type2str, sn
 /* From section 4.2 of TR50075, max length of data is 100 when single UUI is sent */
 #define COURTESY_TRANSFER_MAX_DATA_SIZE 100
 
+typedef enum _sngisdn_rlt_error {
+	SNGISDN_RLT_ERROR_NONE,
+	SNGISDN_RLT_ERROR_NOT_ALLOWED,
+	SNGISDN_RLT_ERROR_NO_CALL_ID,	
+} sngisdn_rlt_error_t;
+
 typedef struct _att_courtesy_vru
 {
 	char dtmf_digits [20];
@@ -517,9 +523,9 @@ void sngisdn_rcv_sng_assert(char *message);
 void sngisdn_handle_asn(ftdm_channel_t *ftdmchan, ftdm_sngisdn_event_id_t event_id, uint8_t *data, uint32_t data_len);
 
 void sngisdn_rltoperationid_invoke(ftdm_channel_t *ftdmchan);
-void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan);
+void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan, sngisdn_rlt_error_t error);
 void sngisdn_rltthirdparty_invoke(ftdm_channel_t *ftdmchan, uint32_t callid, uint8_t callid_len);
-void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan);
+void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan, sngisdn_rlt_error_t error);
 
 void rlt_request_transfer(ftdm_channel_t *ftdmchan);
 void rlt_perform_transfer(ftdm_channel_t *ftdmchan, uint32_t callid, uint8_t callid_len);

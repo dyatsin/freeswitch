@@ -237,11 +237,16 @@ void rlt_perform_transfer(ftdm_channel_t *ftdmchan, uint32_t callid, uint8_t cal
 
 		sngisdn_info->bridge_data.peer_chan = bleg;
 
-		sngisdn_rltthirdparty_respond(ftdmchan);
+		sngisdn_rltthirdparty_respond(ftdmchan, SNGISDN_RLT_ERROR_NONE);
 		sngisdn_snd_fac_req(ftdmchan);
 		ftdm_usrmsg_free(&ftdmchan->usrmsg);
 		
 		sngisdn_send_signal(sngisdn_info, FTDM_SIGEVENT_BRIDGE);
+	} else {
+		ftdm_log_chan(ftdmchan, FTDM_LOG_ERROR, "RLT call-id not found (call-id:0x%08x)\n", callid);
+		sngisdn_rltthirdparty_respond(ftdmchan, SNGISDN_RLT_ERROR_NO_CALL_ID);
+		sngisdn_snd_fac_req(ftdmchan);
+		ftdm_usrmsg_free(&ftdmchan->usrmsg);
 	}
 
 	ftdm_iterator_free(chaniter);
