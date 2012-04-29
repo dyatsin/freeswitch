@@ -368,16 +368,11 @@ static void default_logger(const char *file, const char *func, int line, int lev
 
 }
 
-static int g_malloc = 0;
-static int g_strdup = 0;
-static int g_free = 0;
-
 static __inline__ void *ftdm_std_malloc(void *pool, ftdm_size_t size)
 {
 	void *ptr = malloc(size);
 	pool = NULL; /* fix warning */
-	g_malloc++;
-	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 2 malloc:%p\n", ptr);
+
 	ftdm_assert_return(ptr != NULL, NULL, "Out of memory\n");
 	return ptr;
 }
@@ -386,8 +381,7 @@ static __inline__ void *ftdm_std_calloc(void *pool, ftdm_size_t elements, ftdm_s
 {
 	void *ptr = calloc(elements, size);
 	pool = NULL;
-	g_malloc++;
-	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 2 malloc:%p\n", ptr);
+
 	ftdm_assert_return(ptr != NULL, NULL, "Out of memory\n");
 	return ptr;
 }
@@ -403,8 +397,7 @@ static __inline__ void *ftdm_std_realloc(void *pool, void *buff, ftdm_size_t siz
 static __inline__ void ftdm_std_free(void *pool, void *ptr)
 {
 	pool = NULL;
-	g_free++;
-	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 2 free:%p\n", ptr);
+
 	ftdm_assert_return(ptr != NULL, , "Attempted to free null pointer");
 	free(ptr);
 }
@@ -5180,7 +5173,6 @@ FT_DECLARE(ftdm_status_t) ftdm_unload_modules(void)
 		ftdm_log(FTDM_LOG_INFO, "Unloaded module %s\n", modpath);
 	}
 
-	ftdm_log(FTDM_LOG_CRIT, "DAVIDY malloc:%d strdup:%d free:%d wrong_free:%d\n", g_malloc, g_strdup, g_free);
 	return FTDM_SUCCESS;
 }
 
