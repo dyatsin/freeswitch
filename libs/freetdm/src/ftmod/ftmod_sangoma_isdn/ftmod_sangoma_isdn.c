@@ -61,19 +61,29 @@ ftdm_sngisdn_data_t					g_sngisdn_data;
 SNGISDN_ENUM_NAMES(SNGISDN_TRANSFER_TYPE_NAMES, SNGISDN_TRANSFER_TYPE_STRINGS)
 SNGISDN_STR2ENUM(ftdm_str2sngisdn_transfer_type, sngisdn_transfer_type2str, sngisdn_transfer_type_t, SNGISDN_TRANSFER_TYPE_NAMES, SNGISDN_TRANSFER_INVALID)
 
+static int g_malloc = 0;
+static int g_strdup = 0;
+static int g_wrong_free = 0;
+static int g_free = 0;
+
 static void *asn_malloc(uint32_t size)
 {
-	
+	g_malloc++;
 	return ftdm_malloc(size);
 }
 
 static char *asn_strdup(char *str)
 {
+	g_strdup++;
 	return ftdm_strdup(str);
 }
 
 static void asn_free(void *ptr)
 {
+	if (!ptr) {
+		g_wrong_free++;
+	}
+	g_free++;
 	return ftdm_free(ptr);
 }
 
@@ -1395,6 +1405,8 @@ static FIO_SIG_UNLOAD_FUNCTION(ftdm_sangoma_isdn_unload)
 {
 	unsigned i;
 	ftdm_log(FTDM_LOG_INFO, "Starting ftmod_sangoma_isdn unload...\n");
+
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY malloc:%d strdup:%d free:%d wrong_free:%d\n", g_malloc, g_strdup, g_free, g_wrong_free);
 
 	sng_isdn_free();
 	
