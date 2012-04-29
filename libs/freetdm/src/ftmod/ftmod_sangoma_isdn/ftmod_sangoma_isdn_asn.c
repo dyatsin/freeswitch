@@ -176,12 +176,16 @@ void sngisdn_rltthirdparty_invoke(ftdm_channel_t *ftdmchan, uint32_t callid, uin
 	data = ftdm_malloc(datalen);
 	ftdm_assert(data, "Failed to malloc");
 
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY alloc'ed data:%p\n",data);
+
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 
 	usrmsg = ftdmchan->usrmsg;
 	if (!usrmsg) {
 		usrmsg = ftdm_malloc(sizeof(*usrmsg));	
 		ftdm_assert(usrmsg, "Failed to malloc");
+
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY alloc'ed usrmsg:%p\n", usrmsg);
 		memset(usrmsg, 0, sizeof(*usrmsg));
 	}
 
@@ -219,12 +223,15 @@ void sngisdn_rltthirdparty_respond(ftdm_channel_t *ftdmchan, sngisdn_rlt_error_t
 	data = ftdm_malloc(datalen);
 	ftdm_assert(data, "Failed to malloc");
 
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY alloc'ed data:%p\n",data);
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 
 	usrmsg = ftdmchan->usrmsg;
 	if (!usrmsg) {
 		usrmsg = ftdm_malloc(sizeof(*usrmsg));
 		ftdm_assert(usrmsg, "Failed to malloc");
+
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY alloc'ed usrmsg:%p\n", usrmsg);
 		memset(usrmsg, 0, sizeof(*usrmsg));
 	}
 	
@@ -272,6 +279,8 @@ void sngisdn_rltoperationid_invoke(ftdm_channel_t *ftdmchan)
 	datalen = 200;
 	data = ftdm_malloc(datalen);
 
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY alloc'ed data:%p\n",data);
+
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 
 	isdn_asn.service = ASN_ROSE_SERVICE_ID_DMS_RLT;
@@ -303,6 +312,8 @@ void sngisdn_rltoperationid_respond(ftdm_channel_t *ftdmchan, sngisdn_rlt_error_
 
 	datalen = 200;
 	data = ftdm_malloc(datalen);
+
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY alloc'ed data:%p\n",data);
 
 	memset(&isdn_asn, 0, sizeof(isdn_asn));
 

@@ -113,6 +113,7 @@ uint8_t get_bits(uint8_t octet, uint8_t bitLo, uint8_t bitHi)
 void sngisdn_trace_interpreted_q921(sngisdn_span_data_t *signal_data, ftdm_trace_dir_t dir, uint8_t *data, uint32_t data_len)
 {
 	char *data_str = ftdm_calloc(1,500); /* TODO Find a proper size */
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", data_str);
  	sngisdn_decode_q921(data_str, data, data_len);
 	ftdm_log(FTDM_LOG_DEBUG, "[SNGISDN Q921] %s FRAME %s:\n%s\n", signal_data->ftdm_span->name, ftdm_trace_dir2str(dir), data_str);
 	ftdm_safe_free(data_str);
@@ -220,6 +221,7 @@ void sngisdn_decode_q921(char* str, uint8_t* data, uint32_t data_len)
 void sngisdn_trace_interpreted_q931(sngisdn_span_data_t *signal_data, ftdm_trace_dir_t dir, uint8_t *data, uint32_t data_len)
 {
 	char *data_str = ftdm_calloc(1,MAX_DECODE_STR_LEN); /* TODO Find a proper size */
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", data_str);
 	sngisdn_decode_q931(data_str, data, data_len);
 	ftdm_log(FTDM_LOG_INFO, "[SNGISDN Q931] %s FRAME %s:\n%s\n", signal_data->ftdm_span->name, ftdm_trace_dir2str(dir), data_str);
 	ftdm_safe_free(data_str);

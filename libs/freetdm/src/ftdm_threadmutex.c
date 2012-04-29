@@ -134,6 +134,7 @@ FT_DECLARE(ftdm_status_t) ftdm_thread_create_detached_ex(ftdm_thread_function_t 
 	if (!func || !(thread = (ftdm_thread_t *)ftdm_calloc(1, sizeof(ftdm_thread_t)))) {
 		goto done;
 	}
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", thread);
 
 	thread->private_data = data;
 	thread->function = func;
@@ -182,6 +183,7 @@ FT_DECLARE(ftdm_status_t) ftdm_mutex_create(ftdm_mutex_t **mutex)
 	ftdm_mutex_t *check = NULL;
 
 	check = (ftdm_mutex_t *)ftdm_calloc(1, sizeof(**mutex));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", check);
 	if (!check)
 		goto done;
 #ifdef WIN32
@@ -334,6 +336,7 @@ FT_DECLARE(ftdm_status_t) ftdm_interrupt_create(ftdm_interrupt_t **ininterrupt, 
 	ftdm_assert_return(ininterrupt != NULL, FTDM_FAIL, "interrupt double pointer is null!\n");
 
 	interrupt = ftdm_calloc(1, sizeof(*interrupt));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", interrupt);
 	if (!interrupt) {
 		ftdm_log(FTDM_LOG_ERROR, "Failed to allocate interrupt memory\n");
 		return FTDM_ENOMEM;

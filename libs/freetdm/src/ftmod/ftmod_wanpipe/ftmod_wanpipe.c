@@ -275,6 +275,7 @@ static unsigned wp_open_range(ftdm_span_t *span, unsigned spanno, unsigned start
 			memset(&tdm_api, 0, sizeof(tdm_api));
 #ifdef LIBSANGOMA_VERSION
 			wpchan = ftdm_calloc(1, sizeof(*wpchan));
+			ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", wpchan);
 			ftdm_assert(wpchan != NULL, "wpchan alloc failed\n");
 			chan->io_data = wpchan;
 			/* we need SANGOMA_DEVICE_WAIT_OBJ_SIG and not SANGOMA_DEVICE_WAIT_OBJ alone because we need to call 

@@ -243,6 +243,7 @@ FT_DECLARE(ftdm_status_t) ftdm_sched_create(ftdm_sched_t **sched, const char *na
 	*sched = NULL;
 
 	newsched = ftdm_calloc(1, sizeof(*newsched));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", newsched);
 	if (!newsched) {
 		return FTDM_MEMERR;
 	}
@@ -371,6 +372,7 @@ FT_DECLARE(ftdm_status_t) ftdm_sched_timer(ftdm_sched_t *sched, const char *name
 	ftdm_mutex_lock(sched->mutex);
 
 	newtimer = ftdm_calloc(1, sizeof(*newtimer));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", newtimer);
 	if (!newtimer) {
 		goto done;
 	}

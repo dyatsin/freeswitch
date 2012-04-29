@@ -1498,6 +1498,7 @@ ftdm_status_t sngisdn_add_raw_data(sngisdn_chan_data_t *sngisdn_info, uint8_t* d
 	ftdm_assert_return(!sngisdn_info->raw_data, FTDM_FAIL, "Overwriting existing raw data\n");
 	
 	sngisdn_info->raw_data = ftdm_calloc(1, data_len);
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", sngisdn_info->raw_data);
 	ftdm_assert_return(sngisdn_info->raw_data, FTDM_FAIL, "Failed to allocate raw data\n");
 
 	memcpy(sngisdn_info->raw_data, data, data_len);

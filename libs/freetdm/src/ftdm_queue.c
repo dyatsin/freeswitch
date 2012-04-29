@@ -84,11 +84,13 @@ static ftdm_status_t ftdm_std_queue_create(ftdm_queue_t **outqueue, ftdm_size_t 
 
 	*outqueue = NULL;
 	queue = ftdm_calloc(1, sizeof(*queue));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", queue);
 	if (!queue) {
 		return FTDM_FAIL;
 	}
 
 	queue->elements = ftdm_calloc(1, (sizeof(void*)*capacity));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", queue->elements);
 	if (!queue->elements) {
 		goto failed;
 	}

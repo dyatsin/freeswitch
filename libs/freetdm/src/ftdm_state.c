@@ -101,6 +101,9 @@ FT_DECLARE(ftdm_status_t) _ftdm_channel_complete_state(const char *file, const c
 		ftdm_interrupt_signal(fchan->state_completed_interrupt);
 	}
 
+	if (fchan->state_completed_interrupt) {
+		ftdm_interrupt_destroy(&fchan->state_completed_interrupt);
+	}
 	return FTDM_SUCCESS;
 }
 

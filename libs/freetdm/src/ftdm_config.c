@@ -273,6 +273,7 @@ FT_DECLARE(ftdm_status_t) ftdm_conf_node_create(const char *name, ftdm_conf_node
 	ftdm_assert_return(name != NULL, FTDM_FAIL, "null node name");
 
 	newnode = ftdm_calloc(1, sizeof(**node));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", newnode);
 	if (!newnode) {
 		return FTDM_MEMERR;
 	}
@@ -281,6 +282,7 @@ FT_DECLARE(ftdm_status_t) ftdm_conf_node_create(const char *name, ftdm_conf_node
 	newnode->name[sizeof(newnode->name)-1] = 0;
 
 	newnode->parameters = ftdm_calloc(PARAMETERS_CHUNK_SIZE, sizeof(*newnode->parameters));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", newnode->parameters);
 	if (!newnode->parameters) {
 		ftdm_safe_free(newnode);
 		return FTDM_MEMERR;

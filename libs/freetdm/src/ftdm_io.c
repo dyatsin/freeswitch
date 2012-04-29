@@ -377,6 +377,7 @@ static __inline__ void *ftdm_std_malloc(void *pool, ftdm_size_t size)
 	void *ptr = malloc(size);
 	pool = NULL; /* fix warning */
 	g_malloc++;
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 2 malloc:%p\n", ptr);
 	ftdm_assert_return(ptr != NULL, NULL, "Out of memory\n");
 	return ptr;
 }
@@ -386,6 +387,7 @@ static __inline__ void *ftdm_std_calloc(void *pool, ftdm_size_t elements, ftdm_s
 	void *ptr = calloc(elements, size);
 	pool = NULL;
 	g_malloc++;
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 2 malloc:%p\n", ptr);
 	ftdm_assert_return(ptr != NULL, NULL, "Out of memory\n");
 	return ptr;
 }
@@ -402,6 +404,7 @@ static __inline__ void ftdm_std_free(void *pool, void *ptr)
 {
 	pool = NULL;
 	g_free++;
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 2 free:%p\n", ptr);
 	ftdm_assert_return(ptr != NULL, , "Attempted to free null pointer");
 	free(ptr);
 }
@@ -827,7 +830,7 @@ FT_DECLARE(ftdm_status_t) ftdm_span_create(const char *iotype, const char *name,
 	ftdm_mutex_lock(globals.mutex);
 	if (globals.span_index < FTDM_MAX_SPANS_INTERFACE) {
 		new_span = ftdm_calloc(sizeof(*new_span), 1);
-		
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", new_span);
 		ftdm_assert(new_span, "allocating span failed\n");
 
 		status = ftdm_mutex_create(&new_span->mutex);
@@ -1034,6 +1037,7 @@ FT_DECLARE(ftdm_status_t) ftdm_span_add_channel(ftdm_span_t *span, ftdm_socket_t
 			new_chan = chanmem;
 #else
 			if (!(new_chan = ftdm_calloc(1, sizeof(*new_chan)))) {
+				ftdm_log(FTDM_LOG_CRIT, "DAVIDY 4 alloc new chan:%p\n", new_chan);
 				return FTDM_FAIL;
 			}
 #endif
@@ -1064,6 +1068,7 @@ FT_DECLARE(ftdm_status_t) ftdm_span_add_channel(ftdm_span_t *span, ftdm_socket_t
 		ftdm_buffer_create(&new_chan->gen_dtmf_buffer, 128, 128, 0);
 
 		new_chan->dtmf_hangup_buf = ftdm_calloc (span->dtmf_hangup_len + 1, sizeof (char));
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY 4 alloc dtmf buf:%p\n", new_chan->dtmf_hangup_buf);
 
 		/* set 0.0db gain table */
 		i = 0;
@@ -2208,6 +2213,7 @@ FT_DECLARE(ftdm_status_t) _ftdm_channel_call_transfer(const char *file, const ch
 
 	if (!usrmsg) {
 		msg = ftdm_calloc(1, sizeof(*msg));
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", msg);
 		ftdm_assert_return(msg, FTDM_FAIL, "Failed to allocate usr msg");
 		memset(msg, 0, sizeof(*msg));
 		free_msg = FTDM_TRUE;
@@ -4196,6 +4202,7 @@ FT_DECLARE(ftdm_iterator_t *) ftdm_get_iterator(ftdm_iterator_type_t type, ftdm_
 	}
 
 	iter = ftdm_calloc(1, sizeof(*iter));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated chan_iter %p\n", iter);
 	if (!iter) {
 		return NULL;
 	}
@@ -5462,7 +5469,7 @@ FT_DECLARE(ftdm_status_t) ftdm_group_create(ftdm_group_t **group, const char *na
 	ftdm_mutex_lock(globals.mutex);
 	if (globals.group_index < FTDM_MAX_GROUPS_INTERFACE) {
 		new_group = ftdm_calloc(1, sizeof(*new_group));
-		
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", new_group);
 		ftdm_assert(new_group != NULL, "Failed to create new ftdm group, expect a crash\n");
 
 		status = ftdm_mutex_create(&new_group->mutex);
@@ -5490,11 +5497,13 @@ static ftdm_status_t ftdm_span_trigger_signal(const ftdm_span_t *span, ftdm_sigm
 static ftdm_status_t ftdm_span_queue_signal(const ftdm_span_t *span, ftdm_sigmsg_t *sigmsg)
 {
 	ftdm_sigmsg_t *new_sigmsg = NULL;
-
+	
 	new_sigmsg = ftdm_calloc(1, sizeof(*sigmsg));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY 4 alloc new_sigmsg:%p\n", new_sigmsg);
 	if (!new_sigmsg) {
 		return FTDM_FAIL;
 	}
+
 	memcpy(new_sigmsg, sigmsg, sizeof(*sigmsg));
 
 	ftdm_queue_enqueue(span->pendingsignals, new_sigmsg);
@@ -6306,8 +6315,9 @@ FT_DECLARE(ftdm_status_t) ftdm_channel_save_usrmsg(ftdm_channel_t *ftdmchan, ftd
 {
 	ftdm_assert_return(!ftdmchan->usrmsg, FTDM_FAIL, "Info from previous event was not cleared\n");
 	if (usrmsg) {
-		/* Copy sigmsg from user to internal copy so user can set new variables without race condition */
+		/* Copy sigmsg from user to internal copy so user can set new variables without race condition */		
 		ftdmchan->usrmsg = ftdm_calloc(1, sizeof(ftdm_usrmsg_t));
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY 4 alloc usrmsg:%p\n", ftdmchan->usrmsg);
 		memcpy(ftdmchan->usrmsg, usrmsg, sizeof(ftdm_usrmsg_t));
 		
 		if (usrmsg->raw.data) {
@@ -6344,6 +6354,7 @@ FT_DECLARE(ftdm_status_t) ftdm_sigmsg_free(ftdm_sigmsg_t **sigmsg)
 
 FT_DECLARE(ftdm_status_t) ftdm_usrmsg_free(ftdm_usrmsg_t **usrmsg)
 {
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY freeing usrmsg:%p\n", *usrmsg);
 	if (!*usrmsg) {
 		return FTDM_SUCCESS;
 	}
@@ -6354,6 +6365,7 @@ FT_DECLARE(ftdm_status_t) ftdm_usrmsg_free(ftdm_usrmsg_t **usrmsg)
 	}
 
 	if ((*usrmsg)->raw.data) {
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY freeing usrmsg data:%p\n", (*usrmsg)->raw.data);
 		ftdm_safe_free((*usrmsg)->raw.data);
 		(*usrmsg)->raw.data = NULL;
 		(*usrmsg)->raw.len = 0;

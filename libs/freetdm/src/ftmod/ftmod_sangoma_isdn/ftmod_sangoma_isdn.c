@@ -1214,12 +1214,14 @@ static FIO_CONFIGURE_SPAN_SIGNALING_FUNCTION(ftdm_sangoma_isdn_span_config)
 	ftdm_log(FTDM_LOG_INFO, "Configuring ftmod_sangoma_isdn span = %s\n", span->name);	
 
 	span_data = ftdm_calloc(1, sizeof(sngisdn_span_data_t));
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", span_data);
 	span_data->ftdm_span = span;
 	span->signal_data = span_data;
 	
 	chaniter = ftdm_span_get_chan_iterator(span, NULL);
 	for (curr = chaniter; curr; curr = ftdm_iterator_next(curr)) {
 		sngisdn_chan_data_t *chan_data = ftdm_calloc(1, sizeof(sngisdn_chan_data_t));
+		ftdm_log(FTDM_LOG_CRIT, "DAVIDY allocated %p\n", chan_data);
 		chan_data->ftdmchan = ((ftdm_channel_t*)ftdm_iterator_current(curr));
 		((ftdm_channel_t*)ftdm_iterator_current(curr))->call_data = chan_data;
 		
