@@ -117,8 +117,9 @@ int isdn_asn_encode(isdn_asn_t *isdn_asn, uint8_t *data, uint32_t *max)
 int isdn_asn_decode(isdn_asn_t *isdn_asn, uint8_t *data, uint32_t len)
 {
 	uint8_t *ptr = data;
-
 	uint8_t service_disc = *ptr++;
+
+	memset(isdn_asn, 0, sizeof(isdn_asn));
 
 	switch (service_disc) {
 		case ASN_SERVICE_DISC_ROSE:

@@ -61,9 +61,9 @@ ftdm_sngisdn_data_t					g_sngisdn_data;
 SNGISDN_ENUM_NAMES(SNGISDN_TRANSFER_TYPE_NAMES, SNGISDN_TRANSFER_TYPE_STRINGS)
 SNGISDN_STR2ENUM(ftdm_str2sngisdn_transfer_type, sngisdn_transfer_type2str, sngisdn_transfer_type_t, SNGISDN_TRANSFER_TYPE_NAMES, SNGISDN_TRANSFER_INVALID)
 
-
 static void *asn_malloc(uint32_t size)
 {
+	
 	return ftdm_malloc(size);
 }
 
