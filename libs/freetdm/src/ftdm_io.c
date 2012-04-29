@@ -5180,7 +5180,7 @@ FT_DECLARE(ftdm_status_t) ftdm_unload_modules(void)
 		ftdm_log(FTDM_LOG_INFO, "Unloaded module %s\n", modpath);
 	}
 
-	ftdm_log(FTDM_LOG_CRIT, "DAVIDY malloc:%d strdup:%d free:%d\n", g_malloc, g_strdup, g_free);
+	ftdm_log(FTDM_LOG_CRIT, "DAVIDY malloc:%d strdup:%d free:%d wrong_free:%d\n", g_malloc, g_strdup, g_free);
 	return FTDM_SUCCESS;
 }
 
