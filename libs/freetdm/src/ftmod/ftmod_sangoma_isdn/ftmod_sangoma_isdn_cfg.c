@@ -302,6 +302,8 @@ ftdm_status_t ftmod_isdn_parse_cfg(ftdm_conf_parameter_t *ftdm_parameters, ftdm_
 
 	signal_data->cid_name_method = SNGISDN_CID_NAME_AUTO;
 	signal_data->send_cid_name = SNGISDN_OPT_DEFAULT;
+
+	sprintf(signal_data->rlt_group, "group-1");
 	
 	span->default_caller_data.dnis.plan = FTDM_NPI_INVALID;
 	span->default_caller_data.dnis.type = FTDM_TON_INVALID;
@@ -313,6 +315,8 @@ ftdm_status_t ftmod_isdn_parse_cfg(ftdm_conf_parameter_t *ftdm_parameters, ftdm_
 	span->default_caller_data.bearer_capability = IN_ITC_SPEECH;
 	/* Cannot set default bearer_layer1 yet, as we do not know the switchtype */
 	span->default_caller_data.bearer_layer1 = FTDM_INVALID_INT_PARM;
+
+	
 
 	for (paramindex = 0; ftdm_parameters[paramindex].var; paramindex++) {
 		ftdm_log(FTDM_LOG_DEBUG, "Sangoma ISDN key=value, %s=%s\n", ftdm_parameters[paramindex].var, ftdm_parameters[paramindex].val);
@@ -435,6 +439,8 @@ ftdm_status_t ftmod_isdn_parse_cfg(ftdm_conf_parameter_t *ftdm_parameters, ftdm_
 				ftdm_log(FTDM_LOG_WARNING, "Invalid option %s for parameter %s\n", val, var);
 				signal_data->send_cid_name = SNGISDN_OPT_DEFAULT;
 			}
+		} else if (!strcasecmp(var, "rlt-group")) {
+			strncpy(signal_data->rlt_group, var, sizeof(signal_data->rlt_group));
 		} else if (!strcasecmp(var, "timer-t301")) {
 			parse_timer(val, &signal_data->timer_t301);
 		} else if (!strcasecmp(var, "timer-t302")) {

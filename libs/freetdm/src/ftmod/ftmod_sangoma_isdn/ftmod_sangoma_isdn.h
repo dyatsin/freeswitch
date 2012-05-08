@@ -274,6 +274,8 @@ struct sngisdn_chan_data {
 	ftdm_size_t				raw_data_len;
 };
 
+#define RLT_GROUP_NAME_SZ 20
+
 /* Span specific data */
 typedef struct sngisdn_span_data {
 	ftdm_span_t		*ftdm_span;
@@ -325,6 +327,8 @@ typedef struct sngisdn_span_data {
 	int32_t			timer_t318;
 	int32_t			timer_t319;
 	int32_t			timer_t322;
+
+	char			rlt_group[RLT_GROUP_NAME_SZ];
 	
 	char*			local_numbers[SNGISDN_NUM_LOCAL_NUMBERS];
 	ftdm_timer_id_t timers[SNGISDN_NUM_SPAN_TIMERS];

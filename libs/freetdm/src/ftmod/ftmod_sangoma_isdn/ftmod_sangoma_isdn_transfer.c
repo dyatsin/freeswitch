@@ -182,19 +182,23 @@ done:
 void rlt_request_transfer(ftdm_channel_t *ftdmchan)
 {
 	ftdm_channel_t *peer_chan = NULL;
+	sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*) ftdmchan->span->signal_data;
 
 	peer_chan = ftdm_peer(ftdmchan);
 	
-	/* TODO: when NFAS is implemented, peer_chan->span may not be equal to ftdmchan->span */
-	if (peer_chan && (peer_chan->span == ftdmchan->span)) {
-		sngisdn_chan_data_t *sngisdn_info = ftdmchan->call_data;
+	if (peer_chan) {
+		sngisdn_span_data_t *peer_signal_data = (sngisdn_span_data_t*) peer_chan->span->signal_data;
 
-		ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT transfer requested on channel:s%dc%d (call-id:0x%08x)\n", peer_chan->physical_span_id, peer_chan->physical_chan_id, sngisdn_info->transfer_data.tdata.nortel_rlt.callid);
+		if (!strcmp(signal_data->rlt_group, peer_signal_data->rlt_group)) {
+			sngisdn_chan_data_t *sngisdn_info = ftdmchan->call_data;
 
-		sngisdn_rltthirdparty_invoke(peer_chan, sngisdn_info->transfer_data.tdata.nortel_rlt.callid, sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len);
-		sngisdn_snd_fac_req(peer_chan);
-		ftdm_usrmsg_free(&peer_chan->usrmsg);
-		sngisdn_set_flag(sngisdn_info, FLAG_RLT_THIRDPARTY_INVOKE);
+			ftdm_log_chan(ftdmchan, FTDM_LOG_DEBUG, "RLT transfer requested on channel:s%dc%d (call-id:0x%08x)\n", peer_chan->physical_span_id, peer_chan->physical_chan_id, sngisdn_info->transfer_data.tdata.nortel_rlt.callid);
+
+			sngisdn_rltthirdparty_invoke(peer_chan, sngisdn_info->transfer_data.tdata.nortel_rlt.callid, sngisdn_info->transfer_data.tdata.nortel_rlt.callid_len);
+			sngisdn_snd_fac_req(peer_chan);
+			ftdm_usrmsg_free(&peer_chan->usrmsg);
+			sngisdn_set_flag(sngisdn_info, FLAG_RLT_THIRDPARTY_INVOKE);
+		}
 	}
 
 	return;
