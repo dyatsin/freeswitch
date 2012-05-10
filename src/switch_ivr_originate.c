@@ -429,6 +429,7 @@ static uint8_t check_channel_status(originate_global_t *oglobals, originate_stat
 	char bug_key[256] = "";
 	int send_ringback = 0;
 	uint8_t ring_ready_val = 0;
+	int pickups = 0;
 
 	oglobals->hups = 0;
 	oglobals->idx = IDX_NADA;
@@ -441,6 +442,32 @@ static uint8_t check_channel_status(originate_global_t *oglobals, originate_stat
 		}
 	}
 
+
+	for (i = 0; i < len; i++) {
+		if (originate_status[i].peer_channel && switch_channel_test_flag(originate_status[i].peer_channel, CF_CHANNEL_SWAP)) {
+			const char *key = switch_channel_get_variable(originate_status[i].peer_channel, "channel_swap_uuid");
+			switch_core_session_t *swap_session, *old_session;
+			
+			if ((swap_session = switch_core_session_locate(key))) {
+				switch_channel_clear_flag(originate_status[i].peer_channel, CF_CHANNEL_SWAP);
+				switch_channel_hangup(originate_status[i].peer_channel, SWITCH_CAUSE_PICKED_OFF);
+
+				switch_log_printf(SWITCH_CHANNEL_CHANNEL_LOG(originate_status[i].peer_channel), SWITCH_LOG_DEBUG, "Swapping %s for %s\n",
+								  switch_core_session_get_name(swap_session), switch_channel_get_name(originate_status[i].peer_channel));
+				
+				
+				old_session = originate_status[i].peer_session;
+				originate_status[i].peer_session = swap_session;
+				originate_status[i].peer_channel = switch_core_session_get_channel(originate_status[i].peer_session);
+				originate_status[i].caller_profile = switch_channel_get_caller_profile(originate_status[i].peer_channel);
+				switch_channel_set_flag(originate_status[i].peer_channel, CF_ORIGINATING);
+
+				switch_channel_answer(originate_status[i].peer_channel);
+				switch_core_session_rwunlock(old_session);
+				break;
+			}
+		}
+	}
 
 	for (i = 0; i < len; i++) {
 		switch_channel_state_t state;
@@ -460,6 +487,11 @@ static uint8_t check_channel_status(originate_global_t *oglobals, originate_stat
 				rval = 0;
 				goto end;
 			}
+		}
+
+
+		if (originate_status[i].peer_channel && switch_channel_test_flag(originate_status[i].peer_channel, CF_PICKUP)) {
+			pickups++;
 		}
 
 		if (!(originate_status[i].peer_channel && originate_status[i].peer_session)) {
@@ -719,7 +751,7 @@ static uint8_t check_channel_status(originate_global_t *oglobals, originate_stat
 		}
 	}
 
-	if (oglobals->hups == len) {
+	if (oglobals->hups + pickups == len) {
 		rval = 0;
 	} else {
 		rval = 1;
@@ -3128,7 +3160,7 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_originate(switch_core_session_t *sess
 						switch_ivr_uuid_bridge(holding, switch_core_session_get_uuid(peer_session));
 						holding = NULL;
 						oglobals.idx = IDX_NADA;
-						if (caller_channel && switch_channel_up_nosig(caller_channel)) {
+						if (caller_channel && switch_channel_up_nosig(caller_channel) && !switch_channel_test_flag(caller_channel, CF_INTERCEPTED)) {
 							switch_channel_hangup(caller_channel, SWITCH_CAUSE_ATTENDED_TRANSFER);
 						}
 						caller_channel = NULL;
@@ -3189,7 +3221,7 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_originate(switch_core_session_t *sess
 							switch_channel_set_variable(caller_channel, SWITCH_SOFT_HOLDING_UUID_VARIABLE, NULL);
 						}
 
-						if (holding && oglobals.idx != IDX_TIMEOUT && oglobals.idx != IDX_KEY_CANCEL) {
+						if (holding && oglobals.idx != IDX_TIMEOUT && oglobals.idx != IDX_KEY_CANCEL && oglobals.idx < 0) {
 							switch_core_session_t *holding_session;
 
 							if ((holding_session = switch_core_session_locate(holding))) {
@@ -3208,7 +3240,6 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_originate(switch_core_session_t *sess
 								switch_core_session_rwunlock(holding_session);
 							}
 							switch_channel_set_flag(originate_status[i].peer_channel, CF_LAZY_ATTENDED_TRANSFER);
-							
 							switch_ivr_uuid_bridge(holding, switch_core_session_get_uuid(originate_status[i].peer_session));
 							holding = NULL;
 						} else {
@@ -3540,8 +3571,6 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_originate(switch_core_session_t *sess
 
 	if (*bleg) {
 		switch_channel_t *bchan = switch_core_session_get_channel(*bleg);
-
-		
 
 		if (session && caller_channel) {
 			switch_caller_profile_t *cloned_profile, *peer_profile = switch_channel_get_caller_profile(switch_core_session_get_channel(*bleg));

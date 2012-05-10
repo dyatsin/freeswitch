@@ -1649,6 +1649,28 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 			}
 		}
 		goto end;
+	case SWITCH_MESSAGE_INDICATE_BLIND_TRANSFER_RESPONSE:
+		{
+			const char *event = switch_channel_get_variable(channel, "sip_blind_transfer_event");
+			const char *uuid = switch_channel_get_variable(channel, "blind_transfer_uuid");
+			char *xdest;
+
+			if (event && uuid) {
+				nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+						   NUTAG_SUBSTATE(nua_substate_terminated),
+						   SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), 
+						   SIPTAG_PAYLOAD_STR(msg->numeric_arg ? "SIP/2.0 200 OK\r\n" : "SIP/2.0 403 Forbidden\r\n"), 
+						   SIPTAG_EVENT_STR(event), TAG_END());				
+
+				
+				if (!msg->numeric_arg) {
+					xdest = switch_core_session_sprintf(session, "intercept:%s", uuid);
+					switch_ivr_session_transfer(session, xdest, "inline", NULL);
+				}
+			}
+
+		}
+		goto end;
 	case SWITCH_MESSAGE_INDICATE_UNBRIDGE:
 		if (switch_rtp_ready(tech_pvt->rtp_session)) {
 			
@@ -1924,6 +1946,7 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 					switch_channel_set_flag(channel, CF_REQ_MEDIA);
 				}
 				sofia_set_flag_locked(tech_pvt, TFLAG_SENT_UPDATE);
+				switch_channel_set_variable(channel, "sip_require_timer", "false");
 				sofia_glue_do_invite(session);
 			} else {
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "%s Request to send IMAGE on channel with not t38 options.\n", 
@@ -2095,6 +2118,8 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 					number = tech_pvt->caller_profile->destination_number;
 				}
 				
+				switch_ivr_eavesdrop_update_display(session, name, number);
+
 				if (!sofia_test_flag(tech_pvt, TFLAG_UPDATING_DISPLAY) && switch_channel_test_flag(channel, CF_ANSWERED)) {
 					if (zstr(tech_pvt->last_sent_callee_id_name) || strcmp(tech_pvt->last_sent_callee_id_name, name) ||
 						zstr(tech_pvt->last_sent_callee_id_number) || strcmp(tech_pvt->last_sent_callee_id_number, number)) {
@@ -2399,6 +2424,7 @@ static switch_status_t sofia_receive_message(switch_core_session_t *session, swi
 					char *sdp = (char *) msg->pointer_arg;
 
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Responding with %d [%s]\n", code, reason);
+					sofia_clear_flag(tech_pvt, TFLAG_REINVITED);
 
 					if (!zstr((sdp))) {
 						if (!strcasecmp(sdp, "t38")) {
@@ -5335,13 +5361,40 @@ static switch_status_t list_profile_gateway(const char *line, const char *cursor
 	return status;
 }
 
+SWITCH_STANDARD_APP(sofia_sla_function)
+{
+	private_object_t *tech_pvt;
+	switch_core_session_t *bargee_session;
+
+	if (zstr(data)) {
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Usage: <uuid>\n");
+		return;
+	}
+	
+	if ((bargee_session = switch_core_session_locate((char *)data))) {
+		if (bargee_session == session) {
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "BARGE: %s (cannot barge on myself)\n", (char *) data);
+		} else {
+			if (switch_core_session_check_interface(bargee_session, sofia_endpoint_interface)) {
+				tech_pvt = switch_core_session_get_private(bargee_session);
+				sofia_set_flag(tech_pvt, TFLAG_SLA_BARGE);
+				switch_ivr_transfer_variable(bargee_session, session, SWITCH_SIGNAL_BOND_VARIABLE);
+			}
+		}
+
+		switch_core_session_rwunlock(bargee_session);
+	}
+	
+	switch_ivr_eavesdrop_session(session, data, NULL, ED_MUX_READ | ED_MUX_WRITE | ED_COPY_DISPLAY);
+}
+
 
 SWITCH_MODULE_LOAD_FUNCTION(mod_sofia_load)
 {
 	switch_chat_interface_t *chat_interface;
 	switch_api_interface_t *api_interface;
 	switch_management_interface_t *management_interface;
-	uint32_t cpus = switch_core_cpu_count();
+	switch_application_interface_t *app_interface;
 	struct in_addr in;
 
 	memset(&mod_sofia_globals, 0, sizeof(mod_sofia_globals));
@@ -5379,9 +5432,16 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_sofia_load)
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Waiting for profiles to start\n");
 	switch_yield(1500000);
 
-	/* start one message thread per cpu */
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Starting %u message threads.\n", cpus);
-	sofia_msg_thread_start(cpus);
+	mod_sofia_globals.cpu_count = switch_core_cpu_count();
+	mod_sofia_globals.max_msg_queues = mod_sofia_globals.cpu_count + 1;
+
+	if (mod_sofia_globals.max_msg_queues > SOFIA_MAX_MSG_QUEUE) {
+		mod_sofia_globals.max_msg_queues = SOFIA_MAX_MSG_QUEUE;
+	}
+
+	/* start one message thread */
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Starting initial message thread.\n");
+	sofia_msg_thread_start(0);
 
 	if (switch_event_bind_removable(modname, SWITCH_EVENT_CUSTOM, MULTICAST_EVENT, event_handler, NULL,
 									&mod_sofia_globals.custom_node) != SWITCH_STATUS_SUCCESS) {
@@ -5455,6 +5515,10 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_sofia_load)
 	management_interface = switch_loadable_module_create_interface(*module_interface, SWITCH_MANAGEMENT_INTERFACE);
 	management_interface->relative_oid = "1001";
 	management_interface->management_function = sofia_manage;
+
+	SWITCH_ADD_APP(app_interface, "sofia_sla", "private sofia sla function", 
+				   "private sofia sla function", sofia_sla_function, "<uuid>", SAF_NONE);
+
 
 	SWITCH_ADD_API(api_interface, "sofia", "Sofia Controls", sofia_function, "<cmd> <args>");
 	SWITCH_ADD_API(api_interface, "sofia_gateway_data", "Get data from a sofia gateway", sofia_gateway_data_function,

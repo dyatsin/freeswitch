@@ -2057,6 +2057,8 @@ switch_status_t sofia_glue_do_invite(switch_core_session_t *session)
 	char *mp = NULL, *mp_type = NULL;
 	char *record_route = NULL;
 	const char *recover_via = NULL;
+	int require_timer = 1;
+
 
 	if (sofia_test_flag(tech_pvt, TFLAG_RECOVERING)) {
 		const char *recover_contact = switch_channel_get_variable(tech_pvt->channel, "sip_recover_contact");
@@ -2084,6 +2086,11 @@ switch_status_t sofia_glue_do_invite(switch_core_session_t *session)
 	if (!caller_profile) {
 		switch_channel_hangup(channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 		return SWITCH_STATUS_FALSE;
+	}
+
+
+	if ((val = switch_channel_get_variable_dup(channel, "sip_require_timer", SWITCH_FALSE, -1)) && switch_false(val)) {
+		require_timer = 0;
 	}
 
 
@@ -2607,6 +2614,7 @@ switch_status_t sofia_glue_do_invite(switch_core_session_t *session)
 				   TAG_IF(!zstr(tech_pvt->local_sdp_str), SOATAG_RTP_SORT(SOA_RTP_SORT_REMOTE)),
 				   TAG_IF(!zstr(tech_pvt->local_sdp_str), SOATAG_RTP_SELECT(SOA_RTP_SELECT_ALL)),
 				   TAG_IF(rep, SIPTAG_REPLACES_STR(rep)),
+				   TAG_IF(!require_timer, NUTAG_TIMER_AUTOREQUIRE(0)),
 				   TAG_IF(!zstr(tech_pvt->local_sdp_str), SOATAG_HOLD(holdstr)), TAG_END());
 	} else {
 		nua_invite(tech_pvt->nh,
@@ -2632,6 +2640,7 @@ switch_status_t sofia_glue_do_invite(switch_core_session_t *session)
 				   TAG_IF(!zstr(route), SIPTAG_ROUTE_STR(route)),
 				   TAG_IF(!zstr(invite_route_uri), NUTAG_INITIAL_ROUTE_STR(invite_route_uri)),
 				   TAG_IF(tech_pvt->profile->minimum_session_expires, NUTAG_MIN_SE(tech_pvt->profile->minimum_session_expires)),
+				   TAG_IF(!require_timer, NUTAG_TIMER_AUTOREQUIRE(0)),
 				   TAG_IF(cseq, SIPTAG_CSEQ(cseq)),
 				   NUTAG_MEDIA_ENABLE(0),
 				   SIPTAG_CONTENT_TYPE_STR(mp_type ? mp_type : "application/sdp"),
@@ -3122,6 +3131,7 @@ switch_status_t sofia_glue_activate_rtp(private_object_t *tech_pvt, switch_rtp_f
 	uint32_t rtp_hold_timeout_sec = tech_pvt->profile->rtp_hold_timeout_sec;
 	char *timer_name = NULL;
 	const char *var;
+	uint32_t delay = tech_pvt->profile->rtp_digit_delay;
 
 	switch_assert(tech_pvt != NULL);
 
@@ -3137,10 +3147,6 @@ switch_status_t sofia_glue_activate_rtp(private_object_t *tech_pvt, switch_rtp_f
 
 	if ((var = switch_channel_get_variable(tech_pvt->channel, SOFIA_SECURE_MEDIA_VARIABLE)) && switch_true(var)) {
 		sofia_set_flag_locked(tech_pvt, TFLAG_SECURE);
-	}
-
-	if ((var = switch_channel_get_variable(tech_pvt->channel, "sip_liberal_dtmf")) && switch_true(var)) {
-		sofia_set_flag_locked(tech_pvt, TFLAG_LIBERAL_DTMF);
 	}
 
 	if (switch_channel_test_flag(tech_pvt->channel, CF_PROXY_MODE)) {
@@ -3523,15 +3529,14 @@ switch_status_t sofia_glue_activate_rtp(private_object_t *tech_pvt, switch_rtp_f
 			tech_pvt->cng_pt = 0;
 		}
 
-		if (tech_pvt->profile->rtp_digit_delay || ((val = switch_channel_get_variable(tech_pvt->channel, "rtp_digit_delay")))) {
-			uint32_t delay = tech_pvt->profile->rtp_digit_delay;
+		if (((val = switch_channel_get_variable(tech_pvt->channel, "rtp_digit_delay")))) {
+			int delayi = atoi(val);
+			if (delayi < 0) delayi = 0;
+			delay = (uint32_t) delayi;
+		}
 
-			if (!delay) {
-				int delayi = atoi(val);
-				if (delayi < 0) delayi = 0;
-				delay = (uint32_t) delay;
-			}
 
+		if (delay) {
 			switch_rtp_set_interdigit_delay(tech_pvt->rtp_session, delay);
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(tech_pvt->session), SWITCH_LOG_DEBUG, 
 							  "%s Set rtp dtmf delay to %u\n", switch_channel_get_name(tech_pvt->channel), delay);
@@ -4484,6 +4489,10 @@ uint8_t sofia_glue_negotiate_sdp(switch_core_session_t *session, const char *r_s
 								  "Don't worry, DTMF will work but you may want to ask them to fix it......\n");
 			}
 		}
+	}
+
+	if ((val = switch_channel_get_variable(tech_pvt->channel, "sip_liberal_dtmf")) && switch_true(val)) {
+		sofia_set_flag_locked(tech_pvt, TFLAG_LIBERAL_DTMF);
 	}
 
 	if ((m = sdp->sdp_media) && 

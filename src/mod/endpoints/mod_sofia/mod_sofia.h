@@ -1,6 +1,6 @@
 /* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
- * Copyright (C) 2005-2011, Anthony Minessale II <anthm@freeswitch.org>
+ * Copyright (C) 2005-2012, Anthony Minessale II <anthm@freeswitch.org>
  *
  * Version: MPL 1.1
  *
@@ -264,6 +264,7 @@ typedef enum {
 	PFLAG_PRESENCE_MAP,
 	PFLAG_OPTIONS_RESPOND_503_ON_BUSY,
 	PFLAG_PRESENCE_DISABLE_EARLY,
+	PFLAG_CONFIRM_BLIND_TRANSFER,
 	/* No new flags below this line */
 	PFLAG_MAX
 } PFLAGS;
@@ -331,12 +332,14 @@ typedef enum {
 	TFLAG_LIBERAL_DTMF,
 	TFLAG_GOT_ACK,
 	TFLAG_CAPTURE,
+	TFLAG_REINVITED,
+	TFLAG_SLA_BARGE,
 	/* No new flags below this line */
 	TFLAG_MAX
 } TFLAGS;
 
-#define SOFIA_MAX_MSG_QUEUE 101
-#define SOFIA_MSG_QUEUE_SIZE 5000
+#define SOFIA_MAX_MSG_QUEUE 64
+#define SOFIA_MSG_QUEUE_SIZE 250
 
 struct mod_sofia_globals {
 	switch_memory_pool_t *pool;
@@ -346,6 +349,8 @@ struct mod_sofia_globals {
 	uint32_t callid;
 	int32_t running;
 	int32_t threads;
+	int cpu_count;
+	int max_msg_queues;
 	switch_mutex_t *mutex;
 	char guess_ip[80];
 	char hostname[512];

@@ -1,6 +1,6 @@
 /*
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
- * Copyright (C) 2005/2011, Anthony Minessale II <anthm@freeswitch.org>
+ * Copyright (C) 2005/2012, Anthony Minessale II <anthm@freeswitch.org>
  *
  * Version: MPL 1.1
  *
@@ -296,7 +296,9 @@ switch_status_t gsmopen_tech_init(private_t *tech_pvt, switch_core_session_t *se
 
 	switch_core_timer_sync(&tech_pvt->timer_write);
 
+	switch_mutex_lock(tech_pvt->flag_mutex);
 	switch_clear_flag(tech_pvt, TFLAG_HANGUP);
+	switch_mutex_unlock(tech_pvt->flag_mutex);
 	DEBUGA_GSMOPEN("gsmopen_codec SUCCESS\n", GSMOPEN_P_LOG);
 	return SWITCH_STATUS_SUCCESS;
 }
@@ -343,7 +345,12 @@ static switch_status_t interface_exists(char *the_interface)
 static switch_status_t remove_interface(char *the_interface)
 {
 	int x = 10;
+#ifdef WIN32
+	switch_size_t howmany = 8;
+#else
 	unsigned int howmany = 8;
+#endif
+
 	int interface_id = -1;
 	private_t *tech_pvt = NULL;
 	switch_status_t status;
@@ -474,7 +481,9 @@ static switch_status_t channel_on_init(switch_core_session_t *session)
 	channel = switch_core_session_get_channel(session);
 	switch_assert(channel != NULL);
 	//ERRORA("%s CHANNEL INIT\n", GSMOPEN_P_LOG, tech_pvt->name);
+	switch_mutex_lock(tech_pvt->flag_mutex);
 	switch_set_flag(tech_pvt, TFLAG_IO);
+	switch_mutex_unlock(tech_pvt->flag_mutex);
 
 	/* Move channel's state machine to ROUTING. This means the call is trying
 	   to get from the initial start where the call because, to the point
@@ -549,9 +558,11 @@ static switch_status_t channel_on_hangup(switch_core_session_t *session)
 	}
 
 	DEBUGA_GSMOPEN("%s CHANNEL HANGUP\n", GSMOPEN_P_LOG, tech_pvt->name);
+	switch_mutex_lock(tech_pvt->flag_mutex);
 	switch_clear_flag(tech_pvt, TFLAG_IO);
 	switch_clear_flag(tech_pvt, TFLAG_VOICE);
 	switch_set_flag(tech_pvt, TFLAG_HANGUP);
+	switch_mutex_unlock(tech_pvt->flag_mutex);
 
 	gsmopen_hangup(tech_pvt);
 
@@ -621,18 +632,18 @@ static switch_status_t channel_kill_channel(switch_core_session_t *session, int 
 	switch (sig) {
 	case SWITCH_SIG_KILL:
 		DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_SIG_KILL\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
-		//switch_mutex_lock(tech_pvt->flag_mutex);
+		switch_mutex_lock(tech_pvt->flag_mutex);
 		switch_clear_flag(tech_pvt, TFLAG_IO);
 		switch_clear_flag(tech_pvt, TFLAG_VOICE);
 		switch_set_flag(tech_pvt, TFLAG_HANGUP);
-		//switch_mutex_unlock(tech_pvt->flag_mutex);
+		switch_mutex_unlock(tech_pvt->flag_mutex);
 		break;
 	case SWITCH_SIG_BREAK:
 		DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_SIG_BREAK\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
 		//switch_set_flag(tech_pvt, TFLAG_BREAK);
-		//switch_mutex_lock(tech_pvt->flag_mutex);
+		switch_mutex_lock(tech_pvt->flag_mutex);
 		switch_set_flag(tech_pvt, TFLAG_BREAK);
-		//switch_mutex_unlock(tech_pvt->flag_mutex);
+		switch_mutex_unlock(tech_pvt->flag_mutex);
 		break;
 	default:
 		break;
@@ -728,7 +739,9 @@ static switch_status_t channel_read_frame(switch_core_session_t *session, switch
 		samples = 320;
 		memcpy(tech_pvt->read_frame.data, buffer2, 320);
 	} else {
-		DEBUGA_GSMOPEN("read less than 320, samples=%d\n", GSMOPEN_P_LOG, samples);
+		if (samples != 0) {
+			DEBUGA_GSMOPEN("read less than 320, samples=%d\n", GSMOPEN_P_LOG, samples);
+		}
 		if (tech_pvt->buffer2_full) {
 			memcpy(tech_pvt->read_frame.data, tech_pvt->buffer2, 320);
 			tech_pvt->buffer2_full = 0;
@@ -744,10 +757,14 @@ static switch_status_t channel_read_frame(switch_core_session_t *session, switch
 
 	*frame = &tech_pvt->read_frame;
 
+	switch_mutex_lock(tech_pvt->flag_mutex);
 	switch_set_flag(tech_pvt, TFLAG_VOICE);
+	switch_mutex_unlock(tech_pvt->flag_mutex);
 
 	if (samples != 320) {
-		DEBUGA_GSMOPEN("samples=%d, goto cng\n", GSMOPEN_P_LOG, samples);
+		if (samples != 0) {
+			DEBUGA_GSMOPEN("samples=%d, goto cng\n", GSMOPEN_P_LOG, samples);
+		}
 		goto cng;
 	}
 
@@ -770,15 +787,17 @@ static switch_status_t channel_read_frame(switch_core_session_t *session, switch
 				switch_channel_queue_dtmf(channel, &dtmf);
 				p++;
 			}
-			NOTICA("DTMF DETECTED: [%s] new_dtmf_timestamp: %u, delta_t: %u\n", GSMOPEN_P_LOG, digit_str, (unsigned int) new_dtmf_timestamp,
-				   (unsigned int) (new_dtmf_timestamp - tech_pvt->old_dtmf_timestamp));
+			DEBUGA_GSMOPEN("DTMF DETECTED: [%s] new_dtmf_timestamp: %u, delta_t: %u\n", GSMOPEN_P_LOG, digit_str, (unsigned int) new_dtmf_timestamp,
+						   (unsigned int) (new_dtmf_timestamp - tech_pvt->old_dtmf_timestamp));
 			tech_pvt->old_dtmf_timestamp = new_dtmf_timestamp;
 		}
 	}
 	while (switch_test_flag(tech_pvt, TFLAG_IO)) {
 		if (switch_test_flag(tech_pvt, TFLAG_BREAK)) {
+			switch_mutex_lock(tech_pvt->flag_mutex);
 			switch_clear_flag(tech_pvt, TFLAG_BREAK);
-			DEBUGA_GSMOPEN("CHANNEL READ FRAME goto CNG\n", GSMOPEN_P_LOG);
+			switch_mutex_unlock(tech_pvt->flag_mutex);
+			DEBUGA_GSMOPEN("BREAK: CHANNEL READ FRAME goto CNG\n", GSMOPEN_P_LOG);
 			goto cng;
 		}
 
@@ -788,7 +807,9 @@ static switch_status_t channel_read_frame(switch_core_session_t *session, switch
 		}
 
 		if (switch_test_flag(tech_pvt, TFLAG_IO) && switch_test_flag(tech_pvt, TFLAG_VOICE)) {
+			switch_mutex_lock(tech_pvt->flag_mutex);
 			switch_clear_flag(tech_pvt, TFLAG_VOICE);
+			switch_mutex_unlock(tech_pvt->flag_mutex);
 			if (!tech_pvt->read_frame.datalen) {
 				DEBUGA_GSMOPEN("CHANNEL READ CONTINUE\n", GSMOPEN_P_LOG);
 				continue;
@@ -799,11 +820,10 @@ static switch_status_t channel_read_frame(switch_core_session_t *session, switch
 				switch_swap_linear((int16_t *) (*frame)->data, (int) (*frame)->datalen / 2);
 			}
 #endif
-			//WARNINGA("HERE\n", GSMOPEN_P_LOG);
+			//DEBUGA_GSMOPEN("HERE\n", GSMOPEN_P_LOG);
 			return SWITCH_STATUS_SUCCESS;
 		}
 
-		WARNINGA("HERE\n", GSMOPEN_P_LOG);
 		DEBUGA_GSMOPEN("CHANNEL READ no TFLAG_VOICE\n", GSMOPEN_P_LOG);
 		return SWITCH_STATUS_FALSE;
 
@@ -852,7 +872,7 @@ static switch_status_t channel_write_frame(switch_core_session_t *session, switc
 
 	//switch_core_timer_next(&tech_pvt->timer_write);
 	gsmopen_sound_boost(frame->data, frame->samples, tech_pvt->playback_boost);
-	if(!tech_pvt->no_sound){
+	if (!tech_pvt->no_sound) {
 		sent = tech_pvt->serialPort_serial_audio->Write((char *) frame->data, (int) (frame->datalen));
 
 		if (sent && sent != frame->datalen && sent != -1) {
@@ -874,19 +894,22 @@ static switch_status_t channel_answer_channel(switch_core_session_t *session)
 	switch_assert(tech_pvt != NULL);
 
 	//ERRORA("%s CHANNEL INIT\n", GSMOPEN_P_LOG, tech_pvt->name);
+	switch_mutex_lock(tech_pvt->flag_mutex);
 	switch_set_flag(tech_pvt, TFLAG_IO);
+	switch_mutex_unlock(tech_pvt->flag_mutex);
+
 	gsmopen_serial_answer(tech_pvt);
 
-	/* Move channel's state machine to ROUTING. This means the call is trying
-	   to get from the initial start where the call because, to the point
-	   where a destination has been identified. If the channel is simply
-	   left in the initial state, nothing will happen. */
-	switch_channel_set_state(channel, CS_ROUTING);
 	switch_mutex_lock(globals.mutex);
 	globals.calls++;
 
 	switch_mutex_unlock(globals.mutex);
 	DEBUGA_GSMOPEN("%s CHANNEL ANSWER %s\n", GSMOPEN_P_LOG, tech_pvt->name, switch_core_session_get_uuid(session));
+
+
+	if (channel) {
+		switch_channel_mark_answered(channel);
+	}
 
 	DEBUGA_GSMOPEN("ANSWERED! \n", GSMOPEN_P_LOG);
 
@@ -907,8 +930,21 @@ static switch_status_t channel_receive_message(switch_core_session_t *session, s
 	switch (msg->message_id) {
 	case SWITCH_MESSAGE_INDICATE_ANSWER:
 		{
-			DEBUGA_GSMOPEN("MSG_ID=%d, TO BE ANSWERED!\n", GSMOPEN_P_LOG, msg->message_id);
-			channel_answer_channel(session);
+			DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_MESSAGE_INDICATE_ANSWER\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
+			if (tech_pvt->interface_state != GSMOPEN_STATE_UP && tech_pvt->phone_callflow != CALLFLOW_CALL_ACTIVE) {
+				DEBUGA_GSMOPEN("MSG_ID=%d, TO BE ANSWERED!\n", GSMOPEN_P_LOG, msg->message_id);
+				channel_answer_channel(session);
+			}
+		}
+		break;
+
+	case SWITCH_MESSAGE_INDICATE_PROGRESS:
+		{
+			DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_MESSAGE_INDICATE_PROGRESS\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
+			if (tech_pvt->interface_state != GSMOPEN_STATE_UP && tech_pvt->phone_callflow != CALLFLOW_CALL_ACTIVE) {
+				DEBUGA_GSMOPEN("MSG_ID=%d, TO BE ANSWERED!\n", GSMOPEN_P_LOG, msg->message_id);
+				channel_answer_channel(session);
+			}
 		}
 		break;
 	case SWITCH_MESSAGE_INDICATE_AUDIO_SYNC:
@@ -919,9 +955,20 @@ static switch_status_t channel_receive_message(switch_core_session_t *session, s
 
 		break;
 
+	case SWITCH_MESSAGE_INDICATE_TRANSFER:
+		DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_MESSAGE_INDICATE_TRANSFER\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
+		break;
+	case SWITCH_MESSAGE_INDICATE_BRIDGE:
+		DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_MESSAGE_INDICATE_BRIDGE\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
+		break;
+	case SWITCH_MESSAGE_INDICATE_TRANSCODING_NECESSARY:
+		DEBUGA_GSMOPEN("%s CHANNEL got SWITCH_MESSAGE_INDICATE_TRANSCODING_NECESSARY\n", GSMOPEN_P_LOG, switch_channel_get_name(channel));
+		break;
 	default:
 		{
-			DEBUGA_GSMOPEN("MSG_ID=%d\n", GSMOPEN_P_LOG, msg->message_id);
+			if (msg->message_id != SWITCH_MESSAGE_INDICATE_APPLICATION_EXEC && msg->message_id != SWITCH_MESSAGE_INDICATE_APPLICATION_EXEC_COMPLETE) {
+				DEBUGA_GSMOPEN("MSG_ID=%d\n", GSMOPEN_P_LOG, msg->message_id);
+			}
 		}
 		break;
 	}
@@ -1089,7 +1136,9 @@ static switch_call_cause_t channel_outgoing_channel(switch_core_session_t *sessi
 		caller_profile = tech_pvt->caller_profile;
 		caller_profile->destination_number = rdest;
 
+		switch_mutex_lock(tech_pvt->flag_mutex);
 		switch_set_flag(tech_pvt, TFLAG_OUTBOUND);
+		switch_mutex_unlock(tech_pvt->flag_mutex);
 		switch_channel_set_state(channel, CS_INIT);
 		gsmopen_call(tech_pvt, rdest, 30);
 		switch_mutex_unlock(globals.mutex);
@@ -1119,7 +1168,7 @@ static switch_status_t load_config(int reload_type)
 	SetConsoleOutputCP(65001);
 	DEBUGA_GSMOPEN("Windows CODEPAGE Output =%d\n", GSMOPEN_P_LOG, GetConsoleOutputCP());
 	//let's hope to have unicode in console now. You need to use Lucida Console or, much better, Courier New font for the command prompt to show unicode
-#endif// WIN32
+#endif // WIN32
 	NOTICA("GSMOPEN Charset Output Test 0 %s\n", GSMOPEN_P_LOG, "èéòàù");
 	NOTICA("GSMOPEN Charset Output Test 1 %s\n", GSMOPEN_P_LOG, "ç°§^£");
 	NOTICA("GSMOPEN Charset Output Test 2 %s\n", GSMOPEN_P_LOG, "новости");
@@ -1190,7 +1239,7 @@ static switch_status_t load_config(int reload_type)
 			const char *at_hangup_expect = "OK";
 			const char *at_answer = "ATA";
 			const char *at_answer_expect = "OK";
-			const char *at_send_dtmf = "AT+VTS";
+			const char *at_send_dtmf = "AT^DTMF";
 			const char *at_preinit_1 = "";
 			const char *at_preinit_1_expect = "";
 			const char *at_preinit_2 = "";
@@ -1751,6 +1800,9 @@ static switch_status_t chat_send(switch_event_t *message_event)
 	if (hint == NULL || !strlen(hint)) {	//FIXME FIXME FIXME
 		hint = from;
 	}
+	if (subject == NULL || !strlen(subject)) {	//FIXME FIXME FIXME
+		subject = "SIMPLE MESSAGE";
+	}
 	if (to && (user = strdup(to))) {
 		if ((host = strchr(user, '@'))) {
 			*host++ = '\0';
@@ -1875,7 +1927,11 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_gsmopen_shutdown)
 	int x;
 	private_t *tech_pvt = NULL;
 	switch_status_t status;
+#ifdef WIN32
+	switch_size_t howmany = 8;
+#else
 	unsigned int howmany = 8;
+#endif
 	int interface_id;
 	int fd;
 
@@ -2029,11 +2085,8 @@ int new_inbound_channel(private_t *tech_pvt)
 			return 0;
 		}
 	}
-	if (channel) {
-		//switch_channel_mark_answered(channel);
-	}
 
-	DEBUGA_GSMOPEN("new_inbound_channel\n", GSMOPEN_P_LOG);
+	DEBUGA_GSMOPEN("EXITING new_inbound_channel\n", GSMOPEN_P_LOG);
 
 	return 0;
 }
@@ -2727,7 +2780,7 @@ void *gsmopen_do_gsmopenapi_thread_func(void *obj)
 			//FIXME }
 
 		} else if (tech_pvt->controldevprotocol != PROTOCOL_NO_SERIAL && tech_pvt->interface_state == GSMOPEN_STATE_DIALING) {
-			WARNINGA("WE'RE DIALING, let's take the earlymedia\n", GSMOPEN_P_LOG);
+			DEBUGA_GSMOPEN("WE'RE DIALING, let's take the earlymedia\n", GSMOPEN_P_LOG);
 			tech_pvt->interface_state = CALLFLOW_STATUS_EARLYMEDIA;
 			remote_party_is_early_media(tech_pvt);
 			//new_inbound_channel(tech_pvt);
@@ -2736,7 +2789,7 @@ void *gsmopen_do_gsmopenapi_thread_func(void *obj)
 			//FIXME }
 
 		} else if (tech_pvt->interface_state == CALLFLOW_CALL_REMOTEANSWER) {
-			WARNINGA("REMOTE PARTY ANSWERED\n", GSMOPEN_P_LOG);
+			DEBUGA_GSMOPEN("REMOTE PARTY ANSWERED\n", GSMOPEN_P_LOG);
 			outbound_channel_answered(tech_pvt);
 			//new_inbound_channel(tech_pvt);
 			//FIXME if (!gsmopen_new(p, AST_STATE_RING, tech_pvt->context)) {
@@ -2940,7 +2993,19 @@ int sms_incoming(private_t *tech_pvt)
 		//switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "chatname", tech_pvt->chatmessages[which].chatname);
 		//switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "id", tech_pvt->chatmessages[which].id);
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "subject", "SIMPLE MESSAGE");
+/* mod_sms begin */
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "to", tech_pvt->name);
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "hint", tech_pvt->name);
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "to_proto", GSMOPEN_CHAT_PROTO);
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "from_user", tech_pvt->sms_sender);
+		//switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "from_host", "from_host");
+		//switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "from_full", "from_full");
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "to_user", tech_pvt->name);
+		//switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "to_host", "to_host");
+/* mod_sms end */
 		switch_event_add_body(event, "%s\n", tech_pvt->sms_body);
+                //switch_core_chat_send(GSMOPEN_CHAT_PROTO, event); /* mod_sms */
+                switch_core_chat_send("GLOBAL", event); /* mod_sms */
 		if (session) {
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "during-call", "true");
 			if (switch_core_session_queue_event(session, &event) != SWITCH_STATUS_SUCCESS) {

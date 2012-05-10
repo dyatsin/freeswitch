@@ -379,7 +379,7 @@ ftdm_status_t ftmod_isdn_parse_cfg(ftdm_conf_parameter_t *ftdm_parameters, ftdm_
 			parse_yesno(var, val, &signal_data->restart_opt);
 		} else if (!strcasecmp(var, "channel-restart-timeout")) {
 			signal_data->restart_timeout = atoi(val);
-		} else if (!strcasecmp(var, "local-number")) {			
+		} else if (!strcasecmp(var, "local-number")) {
 			if (add_local_number(val, span) != FTDM_SUCCESS) {
 				return FTDM_FAIL;
 			}

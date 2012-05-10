@@ -209,24 +209,11 @@ check_make() {
 
 
 check_awk() {
-  #
-  # Check to make sure we have GNU Make installed
-  #  
-  
-  awk=`which awk`
-  if [ -x "$awk" ]; then
-     awk_version=`$awk --version | head -n 1 |grep GNU`
-     if [ $? -ne 0 ]; then
-        awk=`which gawk`
-        if [ -x "$awk" ]; then
-          awk_version=`$awk --version | head -n 1 |grep GNU`
-	  if [ $? -ne 0 ]; then 
-            echo "GNU awk does not exist or is not executable"
-            exit 1;
-          fi
-        fi
-      fi
-   fi
+  # TODO: Building with mawk on at least Debian squeeze is know to
+  # work, but mawk is believed to fail on some systems.  If we can
+  # replicate this, we need a particular behavior that we can test
+  # here to verify whether we have an acceptable awk.
+  :
 }
 
 
@@ -356,11 +343,7 @@ bootstrap_apr() {
 
   echo "Entering directory ${LIBDIR}/apr-util"
   cd ${LIBDIR}/apr-util
-  if ! ${BGJOB}; then
-    ./buildconf
-  else
-    ./buildconf &
-  fi
+  ./buildconf
 }
 
 bootstrap_libzrtp() {
@@ -467,9 +450,10 @@ bootstrap_libs() {
     if ! ${BGJOB}; then
       libbootstrap ${i} ; bootstrap_libs_post ${i}
     else
-      ((libbootstrap ${i} ; bootstrap_libs_post ${i}) &)
+      (libbootstrap ${i} ; bootstrap_libs_post ${i}) &
     fi
   done
+  ${BGJOB} && wait
 }
 
 run() {
@@ -484,7 +468,6 @@ run() {
   check_libtoolize
   print_autotools_vers
   bootstrap_libs
-  ${BGJOB} && wait
   return 0
 }
 

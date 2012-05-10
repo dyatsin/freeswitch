@@ -254,7 +254,7 @@ static ftdm_status_t ftdm_core_set_state(const char *file, const char *func, int
 	}
 
 	if (!ftdmchan->state_completed_interrupt) {
-		status = ftdm_interrupt_create(&ftdmchan->state_completed_interrupt, FTDM_INVALID_SOCKET);
+		status = ftdm_interrupt_create(&ftdmchan->state_completed_interrupt, FTDM_INVALID_SOCKET, FTDM_NO_FLAGS);
 		if (status != FTDM_SUCCESS) {
 			ftdm_log_chan_ex(ftdmchan, file, func, line, FTDM_LOG_LEVEL_CRIT, 
 					"Failed to create state change interrupt when moving from %s to %s\n", ftdm_channel_state2str(ftdmchan->state), ftdm_channel_state2str(state));
@@ -370,12 +370,19 @@ end:
 	}
 	ftdm_set_flag(ftdmchan, FTDM_CHANNEL_STATE_CHANGE);
 
-	ftdm_mutex_lock(ftdmchan->span->mutex);
-	ftdm_set_flag(ftdmchan->span, FTDM_SPAN_STATE_CHANGE);
 	if (ftdmchan->span->pendingchans) {
 		ftdm_queue_enqueue(ftdmchan->span->pendingchans, ftdmchan);
+	} else {
+		/* there is a potential deadlock here, if a signaling module is processing
+		 * state changes while the ftdm_span_stop() function is called, the signaling
+		 * thread will block until it can acquire the span lock, but the thread calling
+		 * ftdm_span_stop() which holds the span lock is waiting on the signaling thread
+		 * to finish ... The only reason to acquire the span lock is this flag, new
+		 * signaling modules should use the pendingchans queue instead of this flag,
+		 * as of today a few modules need still to be updated before we can get rid of
+		 * this flag (ie, ftmod_libpri, ftmod_isdn, ftmod_analog) */
+		ftdm_set_flag_locked(ftdmchan->span, FTDM_SPAN_STATE_CHANGE);
 	}
-	ftdm_mutex_unlock(ftdmchan->span->mutex);
 
 	if (ftdm_test_flag(ftdmchan, FTDM_CHANNEL_NONBLOCK)) {
 		/* the channel should not block waiting for state processing */

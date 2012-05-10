@@ -217,7 +217,8 @@ typedef enum {
 	EFLAG_FLOOR_CHANGE = (1 << 25),
 	EFLAG_MUTE_DETECT = (1 << 26),
 	EFLAG_RECORD = (1 << 27),
-	EFLAG_HUP_MEMBER = (1 << 28)
+	EFLAG_HUP_MEMBER = (1 << 28),
+	EFLAG_PLAY_FILE_DONE = (1 << 29),
 } event_type_t;
 
 typedef struct conference_file_node {
@@ -335,6 +336,7 @@ typedef struct conference_obj {
 	switch_time_t end_time;
 	char *log_dir;
 	struct vid_helper vh[2];
+	struct vid_helper mh;
 } conference_obj_t;
 
 /* Relationship with another member */
@@ -477,7 +479,8 @@ static switch_status_t chat_send(switch_event_t *message_event);
 								 
 
 static void launch_conference_record_thread(conference_obj_t *conference, char *path);
-static void launch_conference_video_bridge_thread(conference_member_t *member_a, conference_member_t *member_b);
+static int launch_conference_video_bridge_thread(conference_member_t *member_a, conference_member_t *member_b);
+static void launch_conference_video_mirror_thread(conference_member_t *member_a);
 
 typedef switch_status_t (*conf_api_args_cmd_t) (conference_obj_t *, switch_stream_handle_t *, int, char **);
 typedef switch_status_t (*conf_api_member_cmd_t) (conference_member_t *, switch_stream_handle_t *, void *);
@@ -658,9 +661,10 @@ static void conference_cdr_render(conference_obj_t *conference)
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Error writing [%s][%s]\n", path, ebuf);
 	}
 
-
+	
    	switch_safe_free(path);
 	switch_safe_free(xml_text);
+	switch_xml_free(cdr);
 }
 	
 
@@ -1221,6 +1225,62 @@ static void *SWITCH_THREAD_FUNC conference_video_bridge_thread_run(switch_thread
 }
 
 
+
+static void *SWITCH_THREAD_FUNC conference_video_mirror_thread_run(switch_thread_t *thread, void *obj)
+{
+	struct vid_helper *vh = obj;
+	switch_core_session_t *session_a = vh->member_a->session;
+	switch_channel_t *channel_a = switch_core_session_get_channel(session_a);
+	switch_status_t status;
+	switch_frame_t *read_frame;
+	conference_obj_t *conference = vh->member_a->conference;
+	switch_core_session_message_t msg = { 0 };
+	
+	switch_thread_rwlock_rdlock(conference->rwlock);
+	switch_thread_rwlock_rdlock(vh->member_a->rwlock);
+
+	/* Acquire locks for both sessions so the helper object and member structures don't get destroyed before we exit */
+	switch_core_session_read_lock(session_a);
+
+	/* Tell the channel to request a fresh vid frame */
+	msg.from = __FILE__;
+	msg.message_id = SWITCH_MESSAGE_INDICATE_VIDEO_REFRESH_REQ;
+	switch_core_session_receive_message(session_a, &msg);
+	
+	vh->up = 1;
+	while (vh->up > 0 && switch_test_flag(vh->member_a, MFLAG_RUNNING) && 
+		   switch_channel_ready(channel_a))  {
+
+		if (vh->up == 1) {
+			status = switch_core_session_read_video_frame(session_a, &read_frame, SWITCH_IO_FLAG_NONE, 0);
+			if (!SWITCH_READ_ACCEPTABLE(status)) {
+				break;
+			}
+
+			if (!switch_test_flag(read_frame, SFF_CNG)) {
+				if (switch_core_session_write_video_frame(session_a, read_frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
+					break;
+				}
+			}
+		} else {
+			switch_yield(100000);
+		}
+	}
+
+
+	switch_thread_rwlock_unlock(vh->member_a->rwlock);
+
+	switch_core_session_rwunlock(session_a);
+
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "%s video mirror thread ended.\n", switch_channel_get_name(channel_a));
+
+	switch_thread_rwlock_unlock(conference->rwlock);
+	
+	vh->up = 0;
+	return NULL;
+}
+
+
 /* Main video monitor thread (1 per distinct conference room) */
 static void *SWITCH_THREAD_FUNC conference_video_thread_run(switch_thread_t *thread, void *obj)
 {
@@ -1523,8 +1583,22 @@ static void *SWITCH_THREAD_FUNC conference_thread_run(switch_thread_t *thread, v
 				switch_channel_ready(switch_core_session_get_channel(video_bridge_members[0]->session)) &&
 				switch_channel_ready(switch_core_session_get_channel(video_bridge_members[1]->session)) 
 				) {
+				conference->mh.up = 2;
+				if (launch_conference_video_bridge_thread(video_bridge_members[0], video_bridge_members[1])) {
+					conference->mh.up = 1;
+				} else {
+					conference->mh.up = -1;
+				}
+			} else if (conference->vh[0].up == 0 &&
+					   conference->vh[1].up == 0 &&
+					   conference->mh.up == 0 &&
+					   video_bridge_members[0] &&
+					   !video_bridge_members[1] &&
+					   switch_test_flag(video_bridge_members[0], MFLAG_RUNNING) && 
+					   switch_channel_ready(switch_core_session_get_channel(video_bridge_members[0]->session))
+					   ) {
 				
-				launch_conference_video_bridge_thread(video_bridge_members[0], video_bridge_members[1]);
+				launch_conference_video_mirror_thread(video_bridge_members[0]);
 			}
 		}
 
@@ -1548,7 +1622,7 @@ static void *SWITCH_THREAD_FUNC conference_thread_run(switch_thread_t *thread, v
 				}
 
 				if (file_sample_len <= 0) {
-					if (test_eflag(conference, EFLAG_PLAY_FILE) &&
+					if (test_eflag(conference, EFLAG_PLAY_FILE_DONE) &&
 						switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
 						conference_add_event_data(conference, event);
 						switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "play-file-done");
@@ -5611,6 +5685,7 @@ static switch_status_t conference_outcall(conference_obj_t *conference,
 	char appdata[512];
 	int rdlock = 0;
 	switch_bool_t have_flags = SWITCH_FALSE;
+	const char *outcall_flags;
 
 	*cause = SWITCH_CAUSE_NORMAL_CLEARING;
 
@@ -5694,6 +5769,12 @@ static switch_status_t conference_outcall(conference_obj_t *conference,
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_CRIT, "Memory Error!\n");
 			status = SWITCH_STATUS_MEMERR;
 			goto done;
+		}
+
+		if ((outcall_flags = switch_channel_get_variable(peer_channel, "outcall_flags"))) {
+			if (!zstr(outcall_flags)) {
+				flags = (char *)outcall_flags;
+			}
 		}
 
 		if (flags && strcasecmp(flags, "none")) {
@@ -6026,6 +6107,8 @@ static void clear_eflags(char *events, uint32_t *f)
 			} else if (!strcmp(event, "volume-out-member")) {
 				*f &= ~EFLAG_VOLUME_OUT_MEMBER;
 			} else if (!strcmp(event, "play-file")) {
+				*f &= ~EFLAG_PLAY_FILE;
+			} else if (!strcmp(event, "play-file-done")) {
 				*f &= ~EFLAG_PLAY_FILE;
 			} else if (!strcmp(event, "play-file-member")) {
 				*f &= ~EFLAG_PLAY_FILE_MEMBER;
@@ -6764,11 +6847,11 @@ static void launch_conference_video_thread(conference_obj_t *conference)
 }
 
 /* Create a video thread for the conference and launch it */
-static void launch_conference_video_bridge_thread(conference_member_t *member_a, conference_member_t *member_b)
+static int launch_conference_video_bridge_thread(conference_member_t *member_a, conference_member_t *member_b)
 {
 	conference_obj_t *conference = member_a->conference;
 	switch_memory_pool_t *pool = conference->pool;
-	int sanity = 10000;
+	int sanity = 10000, r = 0;
 
 	memset(conference->vh, 0, sizeof(conference->vh));
 
@@ -6787,12 +6870,31 @@ static void launch_conference_video_bridge_thread(conference_member_t *member_a,
 	
 	if (conference->vh[0].up == 1 && conference->vh[1].up != 1) {
 		conference->vh[0].up = -1;
+		r = -1;
 	}
 
 	if (conference->vh[1].up == 1 && conference->vh[0].up != 1) {
 		conference->vh[1].up = -1;
+		r = -1;
 	}
+
+	return r;
 	
+}
+
+
+
+/* Create a video thread for the conference and launch it */
+static void launch_conference_video_mirror_thread(conference_member_t *member_a)
+{
+	conference_obj_t *conference = member_a->conference;
+	switch_memory_pool_t *pool = conference->pool;
+
+	memset(&conference->mh, 0, sizeof(conference->mh));
+
+	conference->mh.member_a = member_a;
+	
+	launch_thread_detached(conference_video_mirror_thread_run, pool, &conference->mh);
 }
 
 static void launch_conference_record_thread(conference_obj_t *conference, char *path)
