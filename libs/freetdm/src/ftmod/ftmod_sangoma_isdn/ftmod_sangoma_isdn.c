@@ -729,7 +729,16 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 		}
 		break;
 	case FTDM_CHANNEL_STATE_DIALING: /* outgoing call request */
-		{			
+		{	
+			const char* var =  ftdm_usrmsg_get_var(ftdmchan->usrmsg, "unloop-after-unbridge");
+			if (!ftdm_strlen_zero(var)) {
+				if (ftdm_true(var)) {
+					sngisdn_set_flag(sngisdn_info, FLAG_UNLOOP);
+				} else {
+					sngisdn_clear_flag(sngisdn_info, FLAG_UNLOOP);
+				}
+			}
+
 			if (FTDM_SPAN_IS_BRI(ftdmchan->span) && ftdm_test_flag(ftdmchan->span, FTDM_SPAN_PWR_SAVING)) {
 				ftdm_signaling_status_t sigstatus;
 				ftdm_span_get_sig_status(ftdmchan->span, &sigstatus);
@@ -821,9 +830,24 @@ static ftdm_status_t ftdm_sangoma_isdn_process_state_change(ftdm_channel_t *ftdm
 					sngisdn_snd_con_complete(ftdmchan);
 				}
 
-				if (signal_data->signalling == SNGISDN_SIGNALING_CPE) {
-					if (sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
-						rlt_request_transfer(ftdmchan);
+				if (signal_data->signalling == SNGISDN_SIGNALING_CPE && 
+				    signal_data->switchtype == SNGISDN_SWITCH_DMS100 &&
+				    signal_data->transfer) {
+					const char *var = ftdm_usrmsg_get_var(ftdmchan->usrmsg, "unloop-after-unbridge");
+			        	if (!ftdm_strlen_zero(var)) {
+						if (ftdm_true(var)) {
+							sngisdn_set_flag(sngisdn_info, FLAG_UNLOOP);
+						} else {
+							sngisdn_clear_flag(sngisdn_info, FLAG_UNLOOP);
+						}
+					}
+
+					if (sngisdn_test_flag(sngisdn_info, FLAG_UNLOOP)) {
+						if (sngisdn_test_flag(sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
+							rlt_request_transfer(ftdmchan);
+						} else {
+							ftdm_log_chan_msg(ftdmchan, FTDM_LOG_WARNING, "Remote switch does not allow/support RLT Transfer\n");	
+						}
 					}
 				}
 			} else {
@@ -1017,6 +1041,38 @@ static FIO_CHANNEL_INDICATE_FUNCTION(ftdm_sangoma_isdn_indicate)
 		case FTDM_CHANNEL_INDICATE_FACILITY:
 			sngisdn_snd_fac_req(ftdmchan);
 			status = FTDM_SUCCESS;
+			break;
+		case FTDM_CHANNEL_INDICATE_UNBRIDGE:
+			{
+				sngisdn_span_data_t *signal_data = ftdmchan->span->signal_data;
+
+				if (signal_data->switchtype == SNGISDN_SWITCH_DMS100 &&
+				    signal_data->signalling == SNGISDN_SIGNALING_CPE) {
+					ftdm_channel_t *peer_chan = ftdm_peer(ftdmchan);
+					if (peer_chan) {
+						const char* var = NULL;
+						sngisdn_chan_data_t  *peer_sngisdn_info = peer_chan->call_data;
+
+						var = ftdm_usrmsg_get_var(ftdmchan->usrmsg, "unloop-after-unbridge");
+			        		if (!ftdm_strlen_zero(var)) {
+							if (ftdm_true(var)) {
+								sngisdn_set_flag(peer_sngisdn_info, FLAG_UNLOOP);
+							} else {
+								sngisdn_clear_flag(peer_sngisdn_info, FLAG_UNLOOP);
+							}
+						}
+
+						if (sngisdn_test_flag(peer_sngisdn_info, FLAG_UNLOOP)) {
+							if (sngisdn_test_flag(peer_sngisdn_info, FLAG_RLT_OPERATIONID_RESPOND)) {
+								rlt_request_transfer(peer_chan);
+							} else {
+								ftdm_log_chan_msg(ftdmchan, FTDM_LOG_WARNING, "Remote switch does not allow/support RLT Transfer\n");	
+							}
+						}
+					}
+				}
+				status = FTDM_SUCCESS;
+			}	
 			break;
 		default:
 			status = FTDM_NOTIMPL;

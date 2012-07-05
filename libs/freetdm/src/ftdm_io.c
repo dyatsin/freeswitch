@@ -2648,7 +2648,7 @@ static ftdm_status_t ftdm_channel_sig_indicate(ftdm_channel_t *ftdmchan, ftdm_ch
 		
 		status = ftdmchan->span->indicate(ftdmchan, indication);
 		if (status == FTDM_NOTIMPL) {
-			ftdm_log(FTDM_LOG_WARNING, "Do not know how to indicate %s\n", ftdm_channel_indication2str(indication));
+			ftdm_log(FTDM_LOG_DEBUG, "Do not know how to indicate %s\n", ftdm_channel_indication2str(indication));
 		} else if (status != FTDM_SUCCESS) {
 			ftdm_log(FTDM_LOG_WARNING, "Failed to indicate %s\n", ftdm_channel_indication2str(indication));
 		} else { /* SUCCESS */

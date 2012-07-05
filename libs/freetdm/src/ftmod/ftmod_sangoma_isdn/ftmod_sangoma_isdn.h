@@ -89,20 +89,22 @@ typedef enum {
 	FLAG_GLARE              = (1 << 6),
 	FLAG_DELAYED_REL        = (1 << 7),
 	FLAG_SENT_PROCEED       = (1 << 8),
-	FLAG_SEND_DISC  		= (1 << 9),	
+	FLAG_SEND_DISC  	= (1 << 9),	
 	/* Used for BRI only, flag is set after we request line CONNECTED */
-	FLAG_ACTIVATING			= (1 << 10),
+	FLAG_ACTIVATING		= (1 << 10),
 	/* Used when we receive an ALERT msg + inband tones ready */
-	FLAG_MEDIA_READY		= (1 << 11),
+	FLAG_MEDIA_READY	= (1 << 11),
 	/* Set when we already sent a Channel ID IE */
-	FLAG_SENT_CHAN_ID		= (1 << 12),
+	FLAG_SENT_CHAN_ID	= (1 << 12),
 	/* Set when we already sent a Connect */
-	FLAG_SENT_CONNECT		= (1 << 13),
+	FLAG_SENT_CONNECT	= (1 << 13),
 
 	/* Nortel DMS-100 RLT related Flags */
-	FLAG_RLT_OPERATIONID_INVOKE		= (1 << 14),		/* NET: We received a RLT Operation ID Invoke. CPE: We requested a RLT Operation ID Invoke */
+	FLAG_RLT_OPERATIONID_INVOKE	= (1 << 14),		/* NET: We received a RLT Operation ID Invoke. CPE: We requested a RLT Operation ID Invoke */
 	FLAG_RLT_OPERATIONID_RESPOND	= (1 << 15),		/* NET: We responded to a RLT Operation ID Invoke. CPE: Remote switch accepted RLT Operation ID Invoke */
-	FLAG_RLT_THIRDPARTY_INVOKE		= (1 << 16),
+	FLAG_RLT_THIRDPARTY_INVOKE	= (1 << 16),
+	
+	FLAG_UNLOOP		= (1 << 17),			/* Try to request a transfer to remote switch if other leg is an ISDN channel as well (Only RLT supported for now)*/
 } sngisdn_flag_t;
 
 typedef enum {

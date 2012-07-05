@@ -950,6 +950,8 @@ static switch_status_t channel_receive_message_b(switch_core_session_t *session,
 	tech_pvt = (private_t *) switch_core_session_get_private(session);
 	assert(tech_pvt != NULL);
 
+	ftdm_log(FTDM_LOG_DEBUG, "Got Freeswitch message in b-channel [%d]\n", msg->message_id);
+
 	if (switch_test_flag(tech_pvt, TFLAG_DEAD)) {
 		switch_channel_hangup(channel, SWITCH_CAUSE_LOSE_RACE);
 		return SWITCH_STATUS_FALSE;
@@ -1003,6 +1005,18 @@ static switch_status_t channel_receive_message_b(switch_core_session_t *session,
 			}
 		}
 		break;
+	case SWITCH_MESSAGE_INDICATE_UNBRIDGE:
+		{
+			const char *sipvar = NULL;
+			if (globals.sip_headers && (sipvar = switch_channel_get_variable(channel, "sip_h_X-FS-Unloop"))) {
+				memset(&usrmsg, 0, sizeof(usrmsg));
+
+				ftdm_usrmsg_add_var(&usrmsg, "unloop-after-unbridge", sipvar);
+				ftdm_channel_call_indicate_ex(tech_pvt->ftdmchan, FTDM_CHANNEL_INDICATE_UNBRIDGE, &usrmsg);
+				break;
+			}
+			ftdm_channel_call_indicate(tech_pvt->ftdmchan, FTDM_CHANNEL_INDICATE_UNBRIDGE);
+		}
 	default:
 		break;
 	}
@@ -1510,6 +1524,11 @@ static switch_call_cause_t channel_outgoing_channel(switch_core_session_t *sessi
 		sipvar = switch_channel_get_variable(channel, "sip_h_X-FreeTDM-IAM");
 		if (sipvar) {
 			ftdm_usrmsg_add_var(&usrmsg, "ss7_iam", sipvar);
+		}
+
+		sipvar = switch_channel_get_variable(channel, "sip_h_X-FS-Unloop");
+		if (sipvar) {
+			ftdm_usrmsg_add_var(&usrmsg, "unloop-after-unbridge", sipvar);
 		}
 	}
 

@@ -185,7 +185,6 @@ void rlt_request_transfer(ftdm_channel_t *ftdmchan)
 	sngisdn_span_data_t *signal_data = (sngisdn_span_data_t*) ftdmchan->span->signal_data;
 
 	peer_chan = ftdm_peer(ftdmchan);
-	
 	if (peer_chan) {
 		sngisdn_span_data_t *peer_signal_data = (sngisdn_span_data_t*) peer_chan->span->signal_data;
 

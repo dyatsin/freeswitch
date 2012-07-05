@@ -579,9 +579,10 @@ typedef enum {
 	FTDM_CHANNEL_INDICATE_ANSWER,
 	FTDM_CHANNEL_INDICATE_FACILITY,
 	FTDM_CHANNEL_INDICATE_TRANSFER,
+	FTDM_CHANNEL_INDICATE_UNBRIDGE,
 	FTDM_CHANNEL_INDICATE_INVALID,
 } ftdm_channel_indication_t;
-#define INDICATION_STRINGS "NONE", "RINGING", "PROCEED", "PROGRESS", "PROGRESS_MEDIA", "BUSY", "ANSWER", "FACILITY", "TRANSFER", "INVALID"
+#define INDICATION_STRINGS "NONE", "RINGING", "PROCEED", "PROGRESS", "PROGRESS_MEDIA", "BUSY", "ANSWER", "FACILITY", "TRANSFER", "UNBRIDGE", "INVALID"
 
 /*! \brief Move from string to ftdm_channel_indication_t and viceversa */
 FTDM_STR2ENUM_P(ftdm_str2ftdm_channel_indication, ftdm_channel_indication2str, ftdm_channel_indication_t)

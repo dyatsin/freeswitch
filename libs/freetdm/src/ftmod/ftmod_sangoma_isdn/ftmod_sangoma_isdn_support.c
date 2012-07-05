@@ -624,7 +624,7 @@ ftdm_status_t set_calling_num(ftdm_channel_t *ftdmchan, CgPtyNmb *cgPtyNmb)
 ftdm_status_t set_calling_num2(ftdm_channel_t *ftdmchan, CgPtyNmb *cgPtyNmb)
 {
 	const char* string = NULL;
-	uint8_t len,val;
+	uint8_t len, val;
 	ftdm_caller_data_t *caller_data = &ftdmchan->caller_data;
 	
 	string = ftdm_usrmsg_get_var(ftdmchan->usrmsg, "isdn.cg_pty2.digits");
