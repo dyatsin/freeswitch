@@ -1594,7 +1594,6 @@ SWITCH_DECLARE(switch_status_t) switch_ivr_uuid_bridge(const char *originator_uu
 			originator_cp = switch_channel_get_caller_profile(originator_channel);
 			originatee_cp = switch_channel_get_caller_profile(originatee_channel);
 
-
 			switch_channel_set_variable(originatee_channel, "original_destination_number", originatee_cp->destination_number);
 			switch_channel_set_variable(originatee_channel, "original_caller_id_name", originatee_cp->caller_id_name);
 			switch_channel_set_variable(originatee_channel, "original_caller_id_number", originatee_cp->caller_id_number);

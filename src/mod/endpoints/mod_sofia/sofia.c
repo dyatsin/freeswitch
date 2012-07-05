@@ -6860,6 +6860,7 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 							}
 
 						} else if (br_a && br_b) {
+							const char *var = NULL;
 							switch_core_session_t *tmp = NULL;
 
 							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE, "Attended Transfer [%s][%s]\n",
@@ -6898,13 +6899,26 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 
 
 							mark_transfer_record(session, br_b, br_a);
+
+							if ((var = sofia_glue_get_unknown_header(sip, "X-FS-Unloop"))) {
+								switch_core_session_t *bra_b_session = NULL;
+								
+								bra_b_session = switch_core_session_locate(br_a);
+								if (bra_b_session) {
+									switch_channel_t *bra_b_channel = switch_core_session_get_channel(bra_b_session);
+									if (bra_b_channel) {
+										switch_channel_set_variable(bra_b_channel, "sip_h_X-FS-Unloop", var);
+									}
+								}
+							}
 							
 							switch_ivr_uuid_bridge(br_b, br_a);
 							switch_channel_set_variable(channel_b, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER");
 							nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-									   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp),
-									   TAG_END());
-
+										   	NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), 
+											SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp),
+										   	TAG_END());
+							
 							sofia_clear_flag_locked(b_tech_pvt, TFLAG_SIP_HOLD);
 							switch_channel_clear_flag(channel_b, CF_LEG_HOLDING);
 							sofia_clear_flag_locked(tech_pvt, TFLAG_HOLD_LOCK);
@@ -7142,6 +7156,11 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 						   NUTAG_SUBSTATE(nua_substate_terminated),
 						   SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), 
 						   SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
+			}
+
+			if ((var = sofia_glue_get_unknown_header(sip, "X-FS-Unloop"))) {
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "DAVIDY got FS UNLOOP variable\n");
+				switch_channel_set_variable(b_channel, "sip_h_X-FS-Unloop", var);
 			}
 			
 			switch_ivr_session_transfer(b_session, exten, NULL, NULL);
@@ -8506,6 +8525,7 @@ void sofia_handle_sip_i_invite(nua_t *nua, sofia_profile_t *profile, nua_handle_
 				switch_set_flag(tech_pvt->caller_profile, SWITCH_CPF_HIDE_NAME | SWITCH_CPF_HIDE_NUMBER);
 			}
 		}
+
 
 		/* Loop thru unknown Headers Here so we can do something with them */
 		for (un = sip->sip_unknown; un; un = un->un_next) {
