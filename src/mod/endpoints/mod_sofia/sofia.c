@@ -6909,8 +6909,9 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 									if (bra_b_channel) {
 										switch_channel_set_variable(bra_b_channel, "sip_h_X-FS-Unloop", var);
 									}
-								}
-							}
+                                                                        switch_core_session_rwunlock(bra_b_session);
+                                                                }
+                                                        }
 							
 							switch_ivr_uuid_bridge(br_b, br_a);
 							switch_channel_set_variable(channel_b, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER");
@@ -7159,7 +7160,6 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 			}
 
 			if ((var = sofia_glue_get_unknown_header(sip, "X-FS-Unloop"))) {
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "DAVIDY got FS UNLOOP variable\n");
 				switch_channel_set_variable(b_channel, "sip_h_X-FS-Unloop", var);
 			}
 			
